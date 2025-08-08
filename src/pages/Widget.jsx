@@ -1,40 +1,27 @@
-import React, { useState, useEffect } from 'react';
-import { useSearchParams } from 'react-router-dom';
-import { defaultImages, STORAGE_KEY } from '../data/config.js';
-import PhoneFrame from '../components/PhoneFrame.jsx';
-import Grid from '../components/Grid.jsx';
+import React, { useEffect } from 'react'
+import { useSearchParams } from 'react-router-dom'
+import PhoneFrame from '../components/PhoneFrame'
+import Grid from '../components/Grid'
+import { loadRows } from '../lib/data'
 
-// The widget page renders the Instagram grid inside a phone frame. It
-// supports query parameters for embedding in Notion: gap, radius, cols and
-// embed (when set to "1", trims the surrounding padding and header).
-export default function Widget() {
-  const [searchParams] = useSearchParams();
-  const embed = searchParams.get('embed') === '1';
-  const gap = parseInt(searchParams.get('gap'), 10) || 2;
-  const radius = parseInt(searchParams.get('radius'), 10) || 0;
-  const cols = parseInt(searchParams.get('cols'), 10) || 3;
-  const [images, setImages] = useState([]);
+export default function Widget(){
+  const [params] = useSearchParams()
+  const rows = loadRows()
+  const gap = Number(params.get('gap') || 2)
+  const radius = Number(params.get('radius') || 6)
+  const cols = Number(params.get('cols') || 3)
+  const embed = params.get('embed') === '1'
 
-  // Pull images from localStorage or fall back to the default set.
-  useEffect(() => {
-    const stored = JSON.parse(localStorage.getItem(STORAGE_KEY));
-    if (stored && Array.isArray(stored) && stored.length > 0) {
-      setImages(stored);
-    } else {
-      setImages(defaultImages.slice(0, 9));    }
-  }, []);
+  useEffect(()=>{
+    if(embed){ document.body.style.background = '#000' }
+    return ()=>{ document.body.style.background = 'var(--notion-bg)' }
+  }, [embed])
 
   return (
-    <div className={`${embed ? '' : 'p-4'} flex justify-center`}>
-      {!embed && (
-        <div className="absolute top-4 left-4">
-          {/* Provide a link back to the studio for editing when not in embed mode */}
-          <a href="#/studio" className="underline text-blue-600">Edit</a>
-        </div>
-      )}
+    <div className="h-[calc(100vh-1px)] w-full flex items-center justify-center p-2 no-scrollbar">
       <PhoneFrame>
-        <Grid images={images} gap={gap} radius={radius} cols={cols} />
+        <Grid rows={rows} gap={gap} radius={radius} cols={cols} id="gridEmbed" />
       </PhoneFrame>
     </div>
-  );
+  )
 }
