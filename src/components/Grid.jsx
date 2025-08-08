@@ -7,15 +7,12 @@ import React from 'react';
 export default function Grid({ images, gap = 2, radius = 0, cols = 3 }) {
   // Limit to nine images for a consistent preview. Users can still add more
   // images in the studio; only the first nine will be shown in the widget.
-  const displayed = images.slice(0, 9)
+  const displayed = images.slice(0, 9
   return (
     <div
       className="w-full h-full grid"
       style={{
-        gridTemplateColumns: 'repeat(' + cols + ', 1fr)',
-        gap: gap + 'px',
-      }}
-    >
+        g>
       {displayed.map((src, idx) => (
         <div
           key={idx}
