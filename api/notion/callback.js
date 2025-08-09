@@ -29,7 +29,7 @@ module.exports = async (req, res) => {
     body: JSON.stringify({
       grant_type: 'authorization_code',
       code,
-      redirect_uri: `${process.env.APP_URL}/api/notion/callback`,
+      redirect_uri: `https://ig-grid-preview-mvp.vercel.app/api/notion/callback`,
     }),
   });
 
@@ -40,7 +40,7 @@ module.exports = async (req, res) => {
   }
 
   const token = tokenJson.access_token;
-  const isProd = (process.env.APP_URL || '').startsWith('https://');
+  const isProd = ('https://ig-grid-preview-mvp.vercel.app' || '').startsWith('https://');
   const secure = isProd ? ' Secure;' : '';
 
   res.setHeader('Set-Cookie', [
