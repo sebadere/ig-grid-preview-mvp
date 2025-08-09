@@ -1,11 +1,47 @@
-import React from 'react'
+import React, { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import PhoneFrame from '../components/PhoneFrame'
 import Grid from '../components/Grid'
-import { loadRows } from '../lib/data'
+import { loadRows, loadRowsAsync, isNotionConnected, logoutFromNotion } from '../lib/data'
 
 export default function Landing(){
-  const rows = loadRows()
+  const [rows, setRows] = useState(loadRows())
+  const [isConnected, setIsConnected] = useState(isNotionConnected())
+
+  async function handleLogout() {
+    try {
+      await logoutFromNotion();
+      setRows(loadRows());
+      setIsConnected(false);
+    } catch (error) {
+      console.error('Failed to logout:', error);
+    }
+  }
+
+  useEffect(() => {
+    // Load data from Notion if connected
+    const loadData = async () => {
+      try {
+        const newRows = await loadRowsAsync();
+        setRows(newRows);
+      } catch (error) {
+        console.error('Failed to load data:', error);
+        setRows(loadRows()); // fallback to local data
+      }
+    };
+    loadData();
+
+    // Listen for storage changes (logout/login in other tabs)
+    const handleStorageChange = (e) => {
+      if (e.key === 'notionDbId' || e.key === 'ig-grid-mvp-rows') {
+        loadData();
+        setIsConnected(isNotionConnected());
+      }
+    };
+    
+    window.addEventListener('storage', handleStorageChange);
+    return () => window.removeEventListener('storage', handleStorageChange);
+  }, [])
   return (
     <div className="min-h-screen flex flex-col">
       <header className="sticky top-0 z-30 border-b border-[var(--notion-border)] bg-[var(--notion-bg)]/80 backdrop-blur px-4">
@@ -15,8 +51,16 @@ export default function Landing(){
           <div className="ml-auto flex items-center gap-2">
             <Link to="/studio" className="px-3 py-1.5 rounded-lg border border-[var(--notion-border)] bg-[var(--notion-card)] hover:bg-white">Open Studio</Link>
             <Link to="/widget?embed=1" className="px-3 py-1.5 rounded-lg bg-black text-white">Open Embed</Link>
-            <Link to="/onboarding" className="px-3 py-1.5 rounded-lg border border-[var(--notion-border)] bg-[var(--notion-card)]">Connect Notion</Link>
-
+            {isConnected ? (
+              <button 
+                onClick={handleLogout}
+                className="px-3 py-1.5 rounded-lg bg-red-100 text-red-700 hover:bg-red-200"
+              >
+                Logout Notion
+              </button>
+            ) : (
+              <Link to="/onboarding" className="px-3 py-1.5 rounded-lg border border-[var(--notion-border)] bg-[var(--notion-card)]">Connect Notion</Link>
+            )}
           </div>
         </div>
       </header>

@@ -1,15 +1,52 @@
 import React, { useEffect, useMemo, useState } from 'react'
 import PhoneFrame from '../components/PhoneFrame'
 import Grid from '../components/Grid'
-import { DEMO_ROWS, loadRows, saveRows } from '../lib/data'
+import { DEMO_ROWS, loadRows, loadRowsAsync, saveRows, isNotionConnected, logoutFromNotion } from '../lib/data'
 import { Link } from 'react-router-dom'
 
 export default function Studio(){
   const [rows, setRows] = useState(loadRows())
   const [gap, setGap] = useState(2)
   const [radius, setRadius] = useState(6)
+  const [loading, setLoading] = useState(false)
+  const [isConnected, setIsConnected] = useState(isNotionConnected())
+  const [notionDbTitle, setNotionDbTitle] = useState(localStorage.getItem('notionDbTitle') || '')
 
   useEffect(()=>{ saveRows(rows) }, [rows])
+
+  useEffect(() => {
+    // Load data on component mount
+    refreshData();
+  }, [])
+
+  async function refreshData() {
+    setLoading(true);
+    try {
+      const newRows = await loadRowsAsync();
+      setRows(newRows);
+      setIsConnected(isNotionConnected());
+      setNotionDbTitle(localStorage.getItem('notionDbTitle') || '');
+    } catch (error) {
+      console.error('Failed to refresh data:', error);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function handleLogout() {
+    setLoading(true);
+    try {
+      await logoutFromNotion();
+      // Reset to demo data
+      setRows(loadRows());
+      setIsConnected(false);
+      setNotionDbTitle('');
+    } catch (error) {
+      console.error('Failed to logout:', error);
+    } finally {
+      setLoading(false);
+    }
+  }
 
   const embedUrl = useMemo(()=>{
     const params = new URLSearchParams({ embed:'1', cols:'3', gap:String(gap), radius:String(radius) })
@@ -97,7 +134,40 @@ export default function Studio(){
           <div className="space-y-4">
             <div className="rounded-2xl border border-[var(--notion-border)] bg-[var(--notion-card)] p-4">
               <div className="flex items-center gap-2">
-                <button onClick={()=> setRows(loadRows())} className="px-3 py-1.5 rounded-lg border border-[var(--notion-border)] bg-[var(--notion-card)]">Refresh</button>
+                <button 
+                  onClick={refreshData} 
+                  disabled={loading}
+                  className="px-3 py-1.5 rounded-lg border border-[var(--notion-border)] bg-[var(--notion-card)] disabled:opacity-50"
+                >
+                  {loading ? 'Refreshing...' : 'Refresh'}
+                </button>
+                {isConnected ? (
+                  <div className="flex items-center gap-2">
+                    <div className="px-2 py-1 text-xs bg-green-100 text-green-800 rounded">
+                      📊 Connected: {notionDbTitle || 'Notion DB'}
+                    </div>
+                    <button 
+                      onClick={handleLogout}
+                      disabled={loading}
+                      className="px-2 py-1 text-xs bg-red-100 text-red-700 rounded hover:bg-red-200 disabled:opacity-50"
+                      title="Disconnect from Notion and return to demo data"
+                    >
+                      Logout
+                    </button>
+                  </div>
+                ) : (
+                  <div className="flex items-center gap-2">
+                    <div className="px-2 py-1 text-xs bg-gray-100 text-gray-600 rounded">
+                      📄 Demo data
+                    </div>
+                    <Link 
+                      to="/onboarding" 
+                      className="px-2 py-1 text-xs bg-blue-100 text-blue-700 rounded hover:bg-blue-200"
+                    >
+                      Connect Notion
+                    </Link>
+                  </div>
+                )}
                 <div className="ml-auto flex items-center gap-6 text-sm">
                   <label className="flex items-center gap-2">Gap <input type="range" min="0" max="8" step="1" value={gap} onChange={e=>setGap(Number(e.target.value))} /></label>
                   <label className="flex items-center gap-2">Radius <input type="range" min="0" max="20" step="2" value={radius} onChange={e=>setRadius(Number(e.target.value))} /></label>

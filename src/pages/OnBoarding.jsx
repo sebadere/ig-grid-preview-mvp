@@ -49,7 +49,11 @@ export default function Onboarding(){
   function pickDb(db){
     localStorage.setItem('notionDbId', db.id)
     localStorage.setItem('notionDbTitle', db.title || '')
-    alert('Database saved! You can now use it in Studio later.')
+    alert('Database saved! Redirecting to Studio...')
+    // Redirect to studio after a short delay
+    setTimeout(() => {
+      window.location.href = '/#/studio'
+    }, 1000)
   }
 
   return (
@@ -108,8 +112,8 @@ export default function Onboarding(){
           <div className="rounded-2xl border border-[var(--notion-border)] bg-[var(--notion-card)] p-6 lg:col-span-2">
             <div className="text-lg font-semibold mb-2">Step 3: Done</div>
             <p className="text-sm text-[var(--muted)]">
-              Your selection is saved locally for the MVP. Later we’ll fetch from that database in the Studio.
-              You can head back to the <Link to="/studio" className="underline">Studio</Link>.
+              Your Notion database is now connected! The Studio and Widget will automatically load your Instagram posts from the selected database.
+              You can head back to the <Link to="/studio" className="underline">Studio</Link> to see your content.
             </p>
           </div>
         </div>

@@ -16,8 +16,64 @@ export const DEMO_ROWS = [
 const STATE_KEY = 'ig-grid-mvp-rows'
 export const STORAGE_KEY = STATE_KEY
 
+// API helper
+const API_BASE = typeof window !== 'undefined' && import.meta?.env?.DEV
+  ? (import.meta.env.VITE_API_BASE ?? 'http://localhost:3000')
+  : ''; // on prod, same origin
+
+async function getJSON(path, opts = {}) {
+  const r = await fetch(`${API_BASE}${path}`, { credentials: 'include', ...opts });
+  if (!r.ok) throw new Error(await r.text());
+  return r.json();
+}
+
 export function loadRows(){
   try { const raw = localStorage.getItem(STATE_KEY); if(raw) return JSON.parse(raw) } catch(e){}
   return DEMO_ROWS.slice(0,9)
 }
+
+export async function loadRowsAsync(){
+  // Check if user has selected a Notion database
+  const notionDbId = localStorage.getItem('notionDbId');
+  
+  if (notionDbId) {
+    try {
+      // Try to fetch from Notion first
+      const response = await getJSON(`/api/notion/posts?database_id=${notionDbId}`);
+      if (response.results && response.results.length > 0) {
+        // Save the fetched data to localStorage for offline access
+        saveRows(response.results);
+        return response.results;
+      }
+    } catch (error) {
+      console.warn('Failed to fetch from Notion, falling back to local data:', error);
+      // Fall through to local data
+    }
+  }
+  
+  // Fallback to local storage or demo data
+  return loadRows();
+}
+
 export function saveRows(rows){ try { localStorage.setItem(STATE_KEY, JSON.stringify(rows)) } catch(e){} }
+
+export function isNotionConnected() {
+  return Boolean(localStorage.getItem('notionDbId'));
+}
+
+export async function logoutFromNotion() {
+  try {
+    // Call the logout API to clear server-side cookies
+    await fetch(`${API_BASE}/api/notion/logout`, { 
+      method: 'POST', 
+      credentials: 'include' 
+    });
+  } catch (error) {
+    console.warn('Failed to call logout API:', error);
+  }
+  
+  // Clear all local Notion data
+  localStorage.removeItem('notionDbId');
+  localStorage.removeItem('notionDbTitle');
+  localStorage.removeItem(STATE_KEY); // Clear cached posts
+}

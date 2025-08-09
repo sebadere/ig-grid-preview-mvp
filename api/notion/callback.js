@@ -16,6 +16,12 @@ module.exports = async (req, res) => {
     return res.end('Invalid state or code');
   }
 
+  // Determine the base URL dynamically
+  const host = req.headers.host;
+  const protocol = req.headers['x-forwarded-proto'] || (host && host.includes('localhost') ? 'http' : 'https');
+  const baseUrl = `${protocol}://${host}`;
+  const redirectUri = `${baseUrl}/api/notion/callback`;
+
   const basic = Buffer.from(
     `249d872b-594c-8074-98b3-00376f240771:secret_IKqVcLpMGh8sAj6qtQOwXnASf43yZO2PB01AG12KzVe`
   ).toString('base64');
@@ -29,7 +35,7 @@ module.exports = async (req, res) => {
     body: JSON.stringify({
       grant_type: 'authorization_code',
       code,
-      redirect_uri: `https://ig-grid-preview-mvp.vercel.app/api/notion/callback`,
+      redirect_uri: redirectUri,
     }),
   });
 
@@ -40,7 +46,7 @@ module.exports = async (req, res) => {
   }
 
   const token = tokenJson.access_token;
-  const isProd = ('https://ig-grid-preview-mvp.vercel.app' || '').startsWith('https://');
+  const isProd = protocol === 'https';
   const secure = isProd ? ' Secure;' : '';
 
   res.setHeader('Set-Cookie', [
