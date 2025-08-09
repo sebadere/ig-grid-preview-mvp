@@ -2,7 +2,7 @@ const crypto = require('crypto');
 
 module.exports = (req, res) => {
   const state = crypto.randomBytes(16).toString('hex');
-  const clientId = process.env.NOTION_CLIENT_ID;
+  const clientId ='249d872b-594c-8074-98b3-00376f240771';
   const redirectUri = `${process.env.APP_URL}/api/notion/callback`;
 
   const authUrl = new URL('https://api.notion.com/v1/oauth/authorize');

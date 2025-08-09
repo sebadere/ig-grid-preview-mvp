@@ -17,7 +17,7 @@ module.exports = async (req, res) => {
   }
 
   const basic = Buffer.from(
-    `${process.env.NOTION_CLIENT_ID}:${process.env.NOTION_CLIENT_SECRET}`
+    `249d872b-594c-8074-98b3-00376f240771:secret_IKqVcLpMGh8sAj6qtQOwXnASf43yZO2PB01AG12KzVe`
   ).toString('base64');
 
   const tokenResp = await fetch('https://api.notion.com/v1/oauth/token', {
