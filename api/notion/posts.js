@@ -36,7 +36,11 @@ module.exports = async (req, res) => {
         page_size: 50,
         sorts: [
           {
-            timestamp: 'created_time',
+            property: 'Order',
+            direction: 'ascending'
+          },
+          {
+            timestamp: 'created_time', 
             direction: 'descending'
           }
         ]

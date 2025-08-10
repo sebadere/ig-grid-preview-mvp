@@ -124,27 +124,7 @@ export async function loadRowsForUser(databaseId) {
     console.warn('Failed to load cached data for user:', databaseId, error);
   }
   
-  // Try to load from public API (works in embed contexts, no CORS issues)
-  try {
-    const publicResponse = await fetch(`/api/public/user-data?user=${databaseId}`);
-    if (publicResponse.ok) {
-      const publicData = await publicResponse.json();
-      if (publicData.results && publicData.results.length > 0) {
-        console.log('Loaded user data from public API for:', databaseId);
-        // Cache for future use
-        try {
-          localStorage.setItem(userCacheKey, JSON.stringify(publicData.results));
-        } catch (e) {
-          console.warn('Failed to cache public data:', e);
-        }
-        return publicData.results;
-      }
-    }
-  } catch (error) {
-    console.warn('Failed to load public user data:', error);
-  }
-  
-  // If no cached data, try to fetch from Notion (only works if user is authenticated)
+  // Try to fetch fresh data from Notion first (if authenticated)
   try {
     const response = await getJSON(`/api/notion/posts?database_id=${databaseId}`);
     if (response.results && response.results.length > 0) {
@@ -155,6 +135,8 @@ export async function loadRowsForUser(databaseId) {
         url: item.url || '',
         createdTime: item.createdTime || new Date().toISOString()
       }));
+      
+      console.log('Loaded fresh data from Notion for:', databaseId, transformedResults.length, 'items');
       
       // Cache the data for future embed requests
       try {
@@ -167,8 +149,29 @@ export async function loadRowsForUser(databaseId) {
       return transformedResults;
     }
   } catch (error) {
-    console.warn('Failed to fetch from Notion for database:', databaseId, error);
+    console.warn('Failed to fetch fresh data from Notion for database:', databaseId, error);
   }
+
+  // Fallback: Try to load from public API (works in embed contexts, no CORS issues)
+  try {
+    const publicResponse = await fetch(`/api/public/user-data?user=${databaseId}`);
+    if (publicResponse.ok) {
+      const publicData = await publicResponse.json();
+      if (publicData.results && publicData.results.length > 0) {
+        console.log('Loaded user data from public API fallback for:', databaseId);
+        // Cache for future use
+        try {
+          localStorage.setItem(userCacheKey, JSON.stringify(publicData.results));
+        } catch (e) {
+          console.warn('Failed to cache public data:', e);
+        }
+        return publicData.results;
+      }
+    }
+  } catch (error) {
+    console.warn('Failed to load public user data:', error);
+  }
+
   
   // Fallback to demo data if no results or error
   return DEMO_ROWS.slice(0, 9);
@@ -181,8 +184,71 @@ export function cacheUserData(databaseId, data) {
   const userCacheKey = `user-data-${databaseId}`;
   try {
     localStorage.setItem(userCacheKey, JSON.stringify(data));
+    // Store last sync time
+    localStorage.setItem(`${userCacheKey}-last-sync`, new Date().toISOString());
   } catch (error) {
     console.warn('Failed to cache user data:', error);
+  }
+}
+
+// Store content hash for change detection
+export function storeContentHash(databaseId, hash) {
+  if (!databaseId || !hash) return;
+  
+  try {
+    localStorage.setItem(`user-data-${databaseId}-hash`, hash);
+  } catch (error) {
+    console.warn('Failed to store content hash:', error);
+  }
+}
+
+// Check for changes in Notion database
+export async function checkForNotionChanges(databaseId) {
+  if (!databaseId) return false;
+  
+  try {
+    const lastHash = localStorage.getItem(`user-data-${databaseId}-hash`);
+    const url = `/api/notion/sync?database_id=${databaseId}${lastHash ? `&last_hash=${lastHash}` : ''}`;
+    
+    const response = await getJSON(url);
+    
+    // Store the new hash for next comparison
+    if (response.currentHash) {
+      storeContentHash(databaseId, response.currentHash);
+    }
+    
+    return response.hasChanges;
+  } catch (error) {
+    console.warn('Failed to check for Notion changes:', error);
+    return false;
+  }
+}
+
+// Update order in Notion database
+export async function updateNotionOrder(databaseId, orderedIds) {
+  if (!databaseId || !orderedIds) return false;
+  
+  try {
+    const response = await fetch(`${API_BASE}/api/notion/update-order`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      credentials: 'include',
+      body: JSON.stringify({ databaseId, orderedIds })
+    });
+    
+    if (response.ok) {
+      const result = await response.json();
+      console.log('Updated order in Notion:', result);
+      return true;
+    } else {
+      console.warn('Failed to update order in Notion:', response.status);
+      return false;
+    }
+  } catch (error) {
+    console.warn('Failed to update order in Notion:', error);
+    return false;
   }
 }
 

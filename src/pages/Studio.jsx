@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react'
 import PhoneFrame from '../components/PhoneFrame'
 import Grid from '../components/Grid'
-import { DEMO_ROWS, loadRows, loadRowsAsync, saveRows, isNotionConnected, logoutFromNotion } from '../lib/data'
+import { DEMO_ROWS, loadRows, loadRowsAsync, saveRows, isNotionConnected, logoutFromNotion, checkForNotionChanges, updateNotionOrder, storeContentHash } from '../lib/data'
 import { Link } from 'react-router-dom'
 
 export default function Studio(){
@@ -17,7 +17,27 @@ export default function Studio(){
   useEffect(() => {
     // Load data on component mount
     refreshData();
-  }, [])
+    
+    // Set up polling for Notion changes if connected
+    if (isConnected) {
+      const notionDbId = localStorage.getItem('notionDbId');
+      if (notionDbId) {
+        const pollInterval = setInterval(async () => {
+          try {
+            const hasChanges = await checkForNotionChanges(notionDbId);
+            if (hasChanges) {
+              console.log('Notion changes detected, refreshing...');
+              refreshData();
+            }
+          } catch (error) {
+            console.warn('Failed to check for changes:', error);
+          }
+        }, 10000); // Check every 10 seconds
+        
+        return () => clearInterval(pollInterval);
+      }
+    }
+  }, [isConnected])
 
   async function refreshData() {
     setLoading(true);
@@ -68,7 +88,7 @@ export default function Studio(){
   }, [gap, radius, isConnected])
 
   function onDragStart(e, i){ e.dataTransfer.setData('text/plain', String(i)) }
-  function onDrop(e, to){
+  async function onDrop(e, to){
     e.preventDefault()
     const from = Number(e.dataTransfer.getData('text/plain'))
     if(Number.isNaN(from) || from===to) return
@@ -76,6 +96,22 @@ export default function Studio(){
     const [moved] = next.splice(from,1)
     next.splice(to,0,moved)
     setRows(next)
+    
+    // If connected to Notion, update the order in the database
+    if (isConnected) {
+      const notionDbId = localStorage.getItem('notionDbId');
+      if (notionDbId && next.length > 0) {
+        try {
+          const orderedIds = next.map(row => row.id).filter(Boolean);
+          if (orderedIds.length > 0) {
+            console.log('Updating order in Notion...');
+            await updateNotionOrder(notionDbId, orderedIds);
+          }
+        } catch (error) {
+          console.warn('Failed to update order in Notion:', error);
+        }
+      }
+    }
   }
 
   function copyUrl(){ navigator.clipboard.writeText(embedUrl) }
@@ -199,6 +235,27 @@ export default function Studio(){
                 >
                   {loading ? 'Refreshing...' : 'Refresh'}
                 </button>
+                {isConnected && (
+                  <button 
+                    onClick={async () => {
+                      const notionDbId = localStorage.getItem('notionDbId');
+                      if (notionDbId) {
+                        console.log('Manual sync check...');
+                        const hasChanges = await checkForNotionChanges(notionDbId);
+                        console.log('Has changes:', hasChanges);
+                        if (hasChanges) {
+                          refreshData();
+                        } else {
+                          alert('No changes detected');
+                        }
+                      }
+                    }}
+                    disabled={loading}
+                    className="px-3 py-1.5 rounded-lg border border-[var(--notion-border)] bg-[var(--notion-card)] disabled:opacity-50 text-xs"
+                  >
+                    Check Sync
+                  </button>
+                )}
                 {isConnected ? (
                   <div className="flex items-center gap-2">
                     <div className="px-2 py-1 text-xs bg-green-100 text-green-800 rounded">
