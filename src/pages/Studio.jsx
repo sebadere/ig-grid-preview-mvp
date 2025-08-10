@@ -87,19 +87,34 @@ export default function Studio(){
           <Link to="/" className="w-8 h-8 rounded-xl bg-black/90 text-white grid place-items-center text-sm font-semibold">IG</Link>
           <div className="font-semibold">Studio</div>
           <div className="ml-auto flex items-center gap-2">
-            <Link to="/widget?embed=1" className="px-3 py-1.5 rounded-lg bg-black text-white">Open Embed</Link>
-            <Link to="/onboarding" className="px-3 py-1.5 rounded-lg border border-[var(--notion-border)] bg-[var(--notion-card)]">Connect Notion</Link>
+            <Link to="/widget?embed=1" className="px-3 py-1.5 rounded-lg bg-black text-white text-sm">Open Embed</Link>
+            {isConnected ? (
+              <div className="flex items-center gap-2">
+                <div className="px-2 py-1 text-xs bg-green-100 text-green-800 rounded">
+                  ✓ {notionDbTitle || 'Connected'}
+                </div>
+                <Link to="/onboarding" className="px-3 py-1.5 rounded-lg border border-[var(--notion-border)] bg-[var(--notion-card)] text-sm">Change DB</Link>
+              </div>
+            ) : (
+              <Link to="/onboarding" className="px-3 py-1.5 rounded-lg border border-[var(--notion-border)] bg-[var(--notion-card)] text-sm">Connect Notion</Link>
+            )}
           </div>
         </div>
       </header>
 
       <main className="flex-1">
         <div className="max-w-6xl mx-auto px-4 py-10 grid lg:grid-cols-2 gap-6">
-          {/* Left: pseudo Notion DB */}
+          {/* Left: Content Database */}
           <div className="rounded-2xl border border-[var(--notion-border)] bg-[var(--notion-card)]">
             <div className="p-4 border-b border-[var(--notion-border)]">
-              <div className="text-lg font-semibold">Content database</div>
-              <p className="text-sm text-[var(--muted)]">Hardcoded rows. Drag to reorder. Edit URLs to test.</p>
+              <div className="text-lg font-semibold">
+                {isConnected ? `${notionDbTitle || 'Notion Database'}` : 'Demo Content'}
+              </div>
+              <p className="text-sm text-[var(--muted)]">
+                {isConnected 
+                  ? 'Live data from your Notion database. Drag to reorder locally.' 
+                  : 'Demo data. Drag to reorder. Edit URLs to test.'}
+              </p>
             </div>
             <div className="p-2 overflow-x-auto">
               <table className="w-full text-sm">
@@ -108,7 +123,7 @@ export default function Studio(){
                     <th className="py-2 px-3 w-10"></th>
                     <th className="py-2 px-3">Title</th>
                     <th className="py-2 px-3">Image URL</th>
-                    <th className="py-2 px-3 w-16"> </th>
+                    {!isConnected && <th className="py-2 px-3 w-16"> </th>}
                   </tr>
                 </thead>
                 <tbody className="align-top">
@@ -120,27 +135,56 @@ export default function Studio(){
                         onDrop={(e)=>onDrop(e,i)}
                         className="group border-b border-[var(--notion-border)] hover:bg-gray-50/70">
                       <td className="py-2 px-3 text-[var(--muted)] grab">≡</td>
-                      <td className="py-2 px-3"><input value={row.title} onChange={(e)=>{
-                        const next=[...rows]; next[i].title=e.target.value; setRows(next)
-                      }} className="w-full bg-transparent outline-none" /></td>
-                      <td className="py-2 px-3"><input value={row.url} onChange={(e)=>{
-                        const next=[...rows]; next[i].url=e.target.value; setRows(next)
-                      }} className="w-full bg-transparent outline-none" /></td>
-                      <td className="py-2 px-3 text-right">
-                        <button className="opacity-70 group-hover:opacity-100" onClick={()=>{
-                          const next=[...rows]; next.splice(i,1); setRows(next)
-                        }}>✕</button>
+                      <td className="py-2 px-3">
+                        {isConnected ? (
+                          <div className="truncate">{row.title}</div>
+                        ) : (
+                          <input value={row.title} onChange={(e)=>{
+                            const next=[...rows]; next[i].title=e.target.value; setRows(next)
+                          }} className="w-full bg-transparent outline-none" />
+                        )}
                       </td>
+                      <td className="py-2 px-3">
+                        {isConnected ? (
+                          <div className="truncate text-xs">{row.url}</div>
+                        ) : (
+                          <input value={row.url} onChange={(e)=>{
+                            const next=[...rows]; next[i].url=e.target.value; setRows(next)
+                          }} className="w-full bg-transparent outline-none" />
+                        )}
+                      </td>
+                      {!isConnected && (
+                        <td className="py-2 px-3 text-right">
+                          <button className="opacity-70 group-hover:opacity-100" onClick={()=>{
+                            const next=[...rows]; next.splice(i,1); setRows(next)
+                          }}>✕</button>
+                        </td>
+                      )}
                     </tr>
                   ))}
                 </tbody>
               </table>
-              <div className="p-3">
-                <button onClick={()=> setRows([...rows, { title:'New', url:'https://images.unsplash.com/photo-1519681393784-d120267933ba?q=80&w=1200&auto=format&fit=crop' }])}
-                        className="px-3 py-1.5 rounded-lg border border-[var(--notion-border)] bg-[var(--notion-card)]">Add row</button>
-                <button onClick={()=> setRows(DEMO_ROWS.slice(0,9))}
-                        className="px-3 py-1.5 rounded-lg border border-[var(--notion-border)] bg-[var(--notion-card)] ml-2">Reset demo data</button>
-              </div>
+              {!isConnected && (
+                <div className="p-3">
+                  <button onClick={()=> setRows([...rows, { title:'New', url:'https://images.unsplash.com/photo-1519681393784-d120267933ba?q=80&w=1200&auto=format&fit=crop' }])}
+                          className="px-3 py-1.5 rounded-lg border border-[var(--notion-border)] bg-[var(--notion-card)]">Add row</button>
+                  <button onClick={()=> setRows(DEMO_ROWS.slice(0,9))}
+                          className="px-3 py-1.5 rounded-lg border border-[var(--notion-border)] bg-[var(--notion-card)] ml-2">Reset demo data</button>
+                </div>
+              )}
+              {isConnected && (
+                <div className="p-3 text-center">
+                  <div className="text-xs text-[var(--muted)] mb-2">
+                    Data synced from Notion • Changes update in real-time
+                  </div>
+                  <Link 
+                    to="/onboarding" 
+                    className="px-3 py-1.5 rounded-lg border border-[var(--notion-border)] bg-[var(--notion-card)] text-xs"
+                  >
+                    Change Database
+                  </Link>
+                </div>
+              )}
             </div>
           </div>
 
@@ -197,15 +241,25 @@ export default function Studio(){
             </div>
 
             <div className="rounded-2xl border border-[var(--notion-border)] bg-[var(--notion-card)] p-4 text-sm">
-              <div className="font-semibold mb-2">Add to Notion</div>
+              <div className="font-semibold mb-2">
+                {isConnected ? `Embed Your ${notionDbTitle || 'Database'} Grid` : 'Add to Notion'}
+              </div>
               <ol className="list-decimal ml-5 space-y-1 text-[var(--muted)]">
                 <li>Click <span className="font-medium">Copy embed link</span>.</li>
                 <li>In Notion, type <kbd className="px-1 py-0.5 border rounded">/embed</kbd> and paste the link.</li>
+                {isConnected && (
+                  <li className="text-green-700">Your grid will automatically sync with your Notion database!</li>
+                )}
               </ol>
               <div className="mt-3 flex gap-2">
                 <button onClick={copyUrl} className="px-3 py-1.5 rounded-lg bg-black text-white">Copy embed link</button>
-                <input value={embedUrl} readOnly className="flex-1 px-3 py-1.5 rounded-lg border border-[var(--notion-border)] bg-[var(--notion-card)]" />
+                <input value={embedUrl} readOnly className="flex-1 px-3 py-1.5 rounded-lg border border-[var(--notion-border)] bg-[var(--notion-card)] text-xs" />
               </div>
+              {isConnected && (
+                <div className="mt-2 text-xs text-[var(--muted)]">
+                  🔗 This embed is personalized for your database and will show your content to anyone who views it.
+                </div>
+              )}
             </div>
           </div>
         </div>

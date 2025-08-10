@@ -64,8 +64,8 @@ module.exports = async (req, res) => {
         if (key.toLowerCase() === 'name' && property.rich_text?.[0]?.plain_text) {
           title = property.rich_text[0].plain_text;
         }
-        // Look for files/images
-        if (property.type === 'files' && property.files?.[0]) {
+        // Look for files/images (highest priority)
+        if (property.type === 'files' && property.files?.[0] && !imageUrl) {
           const file = property.files[0];
           if (file.type === 'external') {
             imageUrl = file.external.url;
@@ -74,11 +74,11 @@ module.exports = async (req, res) => {
           }
         }
         // Look for URL property that might contain image URLs
-        if ((key.toLowerCase().includes('image') || key.toLowerCase().includes('url') || key.toLowerCase().includes('photo')) && property.url) {
+        if ((key.toLowerCase().includes('image') || key.toLowerCase().includes('url') || key.toLowerCase().includes('photo')) && property.url && !imageUrl) {
           imageUrl = property.url;
         }
         // Look for rich text that might contain URLs
-        if ((key.toLowerCase().includes('image') || key.toLowerCase().includes('url') || key.toLowerCase().includes('photo')) && property.rich_text?.[0]?.plain_text) {
+        if ((key.toLowerCase().includes('image') || key.toLowerCase().includes('url') || key.toLowerCase().includes('photo')) && property.rich_text?.[0]?.plain_text && !imageUrl) {
           const text = property.rich_text[0].plain_text;
           if (text.startsWith('http')) {
             imageUrl = text;
@@ -88,7 +88,20 @@ module.exports = async (req, res) => {
 
       // Fallback to a placeholder if no image found
       if (!imageUrl) {
-        imageUrl = `https://images.unsplash.com/photo-1581833971358-2c8b550f87b3?q=80&w=1200&auto=format&fit=crop&ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D`;
+        // Use a different unsplash image for each post to make the grid more visually interesting
+        const fallbackImages = [
+          'https://images.unsplash.com/photo-1581833971358-2c8b550f87b3?q=80&w=1200&auto=format&fit=crop',
+          'https://images.unsplash.com/photo-1516822271333-242b3b86aa49?q=80&w=1200&auto=format&fit=crop',
+          'https://images.unsplash.com/photo-1544005313-94ddf0286df2?q=80&w=1200&auto=format&fit=crop',
+          'https://images.unsplash.com/photo-1503023345310-bd7c1de61c7d?q=80&w=1200&auto=format&fit=crop',
+          'https://images.unsplash.com/photo-1520975661595-6453be3f7070?q=80&w=1200&auto=format&fit=crop',
+          'https://images.unsplash.com/photo-1520975682031-6a1bf3371784?q=80&w=1200&auto=format&fit=crop',
+          'https://images.unsplash.com/photo-1492447166138-50c3889fccb1?q=80&w=1200&auto=format&fit=crop',
+          'https://images.unsplash.com/photo-1494790108377-be9c29b29330?q=80&w=1200&auto=format&fit=crop',
+          'https://images.unsplash.com/photo-1544731612-de7f96afe55f?q=80&w=1200&auto=format&fit=crop'
+        ];
+        const index = Math.abs(page.id.split('').reduce((a, b) => ((a << 5) - a + b.charCodeAt(0)) | 0, 0)) % fallbackImages.length;
+        imageUrl = fallbackImages[index];
       }
 
       return {
@@ -97,7 +110,7 @@ module.exports = async (req, res) => {
         url: imageUrl,
         createdTime: page.created_time
       };
-    }).filter(post => post.url); // Only include posts with images
+    }); // Include all posts, even those without images (they'll get placeholders)
 
     res.setHeader('Content-Type', 'application/json');
     res.end(JSON.stringify({ results: posts }));

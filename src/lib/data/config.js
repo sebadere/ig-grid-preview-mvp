@@ -41,13 +41,34 @@ export async function loadRowsAsync(){
       // Try to fetch from Notion first
       const response = await getJSON(`/api/notion/posts?database_id=${notionDbId}`);
       if (response.results && response.results.length > 0) {
+        // Transform to ensure proper format
+        const transformedResults = response.results.map(item => ({
+          id: item.id || `${item.title}-${Date.now()}`,
+          title: item.title || 'Untitled',
+          url: item.url || '',
+          createdTime: item.createdTime || new Date().toISOString()
+        }));
+        
         // Save the fetched data to localStorage for offline access
-        saveRows(response.results);
-        return response.results;
+        saveRows(transformedResults);
+        // Also cache it for embed access
+        cacheUserData(notionDbId, transformedResults);
+        return transformedResults;
       }
     } catch (error) {
       console.warn('Failed to fetch from Notion, falling back to local data:', error);
-      // Fall through to local data
+      // Try to load cached data first
+      try {
+        const cached = localStorage.getItem(`user-data-${notionDbId}`);
+        if (cached) {
+          const parsed = JSON.parse(cached);
+          if (parsed && parsed.length > 0) {
+            return parsed;
+          }
+        }
+      } catch (cacheError) {
+        console.warn('Failed to load cached data:', cacheError);
+      }
     }
   }
   
@@ -84,11 +105,39 @@ export async function loadRowsForUser(databaseId) {
     return DEMO_ROWS.slice(0, 9);
   }
   
+  // First, try to get cached data for this user
+  const userCacheKey = `user-data-${databaseId}`;
   try {
-    // Try to fetch from Notion for the specific database
+    const cached = localStorage.getItem(userCacheKey);
+    if (cached) {
+      const parsed = JSON.parse(cached);
+      if (parsed && parsed.length > 0) {
+        return parsed;
+      }
+    }
+  } catch (error) {
+    console.warn('Failed to load cached data for user:', databaseId, error);
+  }
+  
+  // If no cached data, try to fetch from Notion (only works if user is authenticated)
+  try {
     const response = await getJSON(`/api/notion/posts?database_id=${databaseId}`);
     if (response.results && response.results.length > 0) {
-      return response.results;
+      // Transform to ensure proper format
+      const transformedResults = response.results.map(item => ({
+        id: item.id || `${item.title}-${Date.now()}`,
+        title: item.title || 'Untitled',
+        url: item.url || '',
+        createdTime: item.createdTime || new Date().toISOString()
+      }));
+      
+      // Cache the data for future embed requests
+      try {
+        localStorage.setItem(userCacheKey, JSON.stringify(transformedResults));
+      } catch (e) {
+        console.warn('Failed to cache user data:', e);
+      }
+      return transformedResults;
     }
   } catch (error) {
     console.warn('Failed to fetch from Notion for database:', databaseId, error);
@@ -96,4 +145,16 @@ export async function loadRowsForUser(databaseId) {
   
   // Fallback to demo data if no results or error
   return DEMO_ROWS.slice(0, 9);
+}
+
+// Function to cache user data when they refresh
+export function cacheUserData(databaseId, data) {
+  if (!databaseId || !data) return;
+  
+  const userCacheKey = `user-data-${databaseId}`;
+  try {
+    localStorage.setItem(userCacheKey, JSON.stringify(data));
+  } catch (error) {
+    console.warn('Failed to cache user data:', error);
+  }
 }

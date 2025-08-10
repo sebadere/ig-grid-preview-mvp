@@ -95,16 +95,21 @@ export default function Onboarding(){
             ) : dbs.length === 0 ? (
               <div className="text-sm text-[var(--muted)]">No databases returned. Make sure your integration has access to at least one database.</div>
             ) : (
-              <ul className="space-y-2">
-                {dbs.map(db => (
-                  <li key={db.id} className="flex items-center gap-2">
-                    <button onClick={()=>pickDb(db)} className="px-3 py-1.5 rounded-lg border">
-                      Use “{db.title || db.id.slice(0,6)}”
-                    </button>
-                    <span className="text-xs text-[var(--muted)]">({db.id})</span>
-                  </li>
-                ))}
-              </ul>
+              <>
+                <div className="text-sm text-[var(--muted)] mb-3">
+                  💡 <strong>Tip:</strong> Works best with databases that have image URLs in properties named "Image", "URL", "Photo", or file uploads.
+                </div>
+                <ul className="space-y-2">
+                  {dbs.map(db => (
+                    <li key={db.id} className="flex items-center gap-2">
+                      <button onClick={()=>pickDb(db)} className="px-3 py-1.5 rounded-lg border hover:bg-gray-50">
+                        Use "{db.title || db.id.slice(0,6)}"
+                      </button>
+                      <span className="text-xs text-[var(--muted)]">({db.id.slice(0,8)}...)</span>
+                    </li>
+                  ))}
+                </ul>
+              </>
             )}
           </div>
 
