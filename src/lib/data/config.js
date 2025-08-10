@@ -49,10 +49,15 @@ export async function loadRowsAsync(){
           createdTime: item.createdTime || new Date().toISOString()
         }));
         
+        console.log('Fetched from Notion:', transformedResults.length, 'items');
+        console.log('Sample item:', transformedResults[0]);
+        
         // Save the fetched data to localStorage for offline access
         saveRows(transformedResults);
         // Also cache it for embed access
         cacheUserData(notionDbId, transformedResults);
+        // Store in public API for embed access
+        await storeUserDataPublic(notionDbId, transformedResults);
         return transformedResults;
       }
     } catch (error) {
@@ -119,6 +124,26 @@ export async function loadRowsForUser(databaseId) {
     console.warn('Failed to load cached data for user:', databaseId, error);
   }
   
+  // Try to load from public API (works in embed contexts, no CORS issues)
+  try {
+    const publicResponse = await fetch(`/api/public/user-data?user=${databaseId}`);
+    if (publicResponse.ok) {
+      const publicData = await publicResponse.json();
+      if (publicData.results && publicData.results.length > 0) {
+        console.log('Loaded user data from public API for:', databaseId);
+        // Cache for future use
+        try {
+          localStorage.setItem(userCacheKey, JSON.stringify(publicData.results));
+        } catch (e) {
+          console.warn('Failed to cache public data:', e);
+        }
+        return publicData.results;
+      }
+    }
+  } catch (error) {
+    console.warn('Failed to load public user data:', error);
+  }
+  
   // If no cached data, try to fetch from Notion (only works if user is authenticated)
   try {
     const response = await getJSON(`/api/notion/posts?database_id=${databaseId}`);
@@ -137,6 +162,8 @@ export async function loadRowsForUser(databaseId) {
       } catch (e) {
         console.warn('Failed to cache user data:', e);
       }
+      // Store in public API for embed access
+      await storeUserDataPublic(databaseId, transformedResults);
       return transformedResults;
     }
   } catch (error) {
@@ -156,5 +183,28 @@ export function cacheUserData(databaseId, data) {
     localStorage.setItem(userCacheKey, JSON.stringify(data));
   } catch (error) {
     console.warn('Failed to cache user data:', error);
+  }
+}
+
+// Function to store user data in public API for embed access
+export async function storeUserDataPublic(databaseId, data) {
+  if (!databaseId || !data) return;
+  
+  try {
+    const response = await fetch(`${API_BASE}/api/public/user-data?user=${databaseId}`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ data })
+    });
+    
+    if (response.ok) {
+      console.log('Successfully stored user data in public API');
+    } else {
+      console.warn('Failed to store user data in public API:', response.status);
+    }
+  } catch (error) {
+    console.warn('Failed to store user data in public API:', error);
   }
 }
