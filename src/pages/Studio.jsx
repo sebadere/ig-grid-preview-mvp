@@ -49,9 +49,23 @@ export default function Studio(){
   }
 
   const embedUrl = useMemo(()=>{
-    const params = new URLSearchParams({ embed:'1', cols:'3', gap:String(gap), radius:String(radius) })
+    const params = new URLSearchParams({ 
+      embed:'1', 
+      cols:'3', 
+      gap:String(gap), 
+      radius:String(radius) 
+    })
+    
+    // Add user-specific identifier if connected to Notion
+    if (isConnected) {
+      const notionDbId = localStorage.getItem('notionDbId');
+      if (notionDbId) {
+        params.set('user', notionDbId);
+      }
+    }
+    
     return `${window.location.origin}${window.location.pathname}#/widget?${params.toString()}`
-  }, [gap, radius])
+  }, [gap, radius, isConnected])
 
   function onDragStart(e, i){ e.dataTransfer.setData('text/plain', String(i)) }
   function onDrop(e, to){

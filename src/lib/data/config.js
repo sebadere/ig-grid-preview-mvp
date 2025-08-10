@@ -77,3 +77,23 @@ export async function logoutFromNotion() {
   localStorage.removeItem('notionDbTitle');
   localStorage.removeItem(STATE_KEY); // Clear cached posts
 }
+
+// New function to load data for a specific user by database ID
+export async function loadRowsForUser(databaseId) {
+  if (!databaseId) {
+    return DEMO_ROWS.slice(0, 9);
+  }
+  
+  try {
+    // Try to fetch from Notion for the specific database
+    const response = await getJSON(`/api/notion/posts?database_id=${databaseId}`);
+    if (response.results && response.results.length > 0) {
+      return response.results;
+    }
+  } catch (error) {
+    console.warn('Failed to fetch from Notion for database:', databaseId, error);
+  }
+  
+  // Fallback to demo data if no results or error
+  return DEMO_ROWS.slice(0, 9);
+}

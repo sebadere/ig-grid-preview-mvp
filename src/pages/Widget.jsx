@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import PhoneFrame from '../components/PhoneFrame'
 import Grid from '../components/Grid'
-import { loadRows, loadRowsAsync } from '../lib/data'
+import { loadRows, loadRowsAsync, loadRowsForUser } from '../lib/data'
 
 export default function Widget(){
   const [params] = useSearchParams()
@@ -11,6 +11,7 @@ export default function Widget(){
   const radius = Number(params.get('radius') || 6)
   const cols = Number(params.get('cols') || 3)
   const embed = params.get('embed') === '1'
+  const userId = params.get('user') // Get user ID from URL params
 
   useEffect(()=>{
     if(embed){ document.body.style.background = '#000' }
@@ -18,11 +19,18 @@ export default function Widget(){
   }, [embed])
 
   useEffect(() => {
-    // Load data from Notion if connected
+    // Load data based on user parameter or current user
     const loadData = async () => {
       try {
-        const newRows = await loadRowsAsync();
-        setRows(newRows);
+        if (userId) {
+          // Load data for specific user from URL params
+          const newRows = await loadRowsForUser(userId);
+          setRows(newRows);
+        } else {
+          // Load data for current user (if logged in)
+          const newRows = await loadRowsAsync();
+          setRows(newRows);
+        }
       } catch (error) {
         console.error('Failed to load data:', error);
         setRows(loadRows()); // fallback to local data
@@ -39,7 +47,7 @@ export default function Widget(){
     
     window.addEventListener('storage', handleStorageChange);
     return () => window.removeEventListener('storage', handleStorageChange);
-  }, [])
+  }, [userId])
 
   return (
     <div className="h-[calc(100vh-1px)] w-full flex items-center justify-center p-2 no-scrollbar">
