@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react'
 import PhoneFrame from '../components/PhoneFrame'
 import Grid from '../components/Grid'
 import { DEMO_ROWS, loadRows, loadRowsAsync, saveRows, isNotionConnected, logoutFromNotion, checkForNotionChanges, storeContentHash, storeUserDataPublic, cacheUserData } from '../lib/data'
+import { storeUserGrid } from '../lib/supabase'
 import { Link } from 'react-router-dom'
 
 export default function Studio(){
@@ -97,18 +98,30 @@ export default function Studio(){
     next.splice(to,0,moved)
     setRows(next)
 
-    // If connected, publish the new order to our public store so embeds mirror Studio exactly
+    // If connected, store the new order in Supabase so embeds mirror Studio exactly
     if (isConnected) {
       const notionDbId = localStorage.getItem('notionDbId');
       if (notionDbId && next.length > 0) {
         try {
-          // Cache locally for current user
+          // Store in Supabase with user session
+          await storeUserGrid(notionDbId, next);
+          
+          // Also cache locally for backup and publish to old API for compatibility
           cacheUserData(notionDbId, next);
-          // Publish to public API for embeds
           await storeUserDataPublic(notionDbId, next);
-          console.log('Published reordered grid to public store');
+          
+          console.log('Stored reordered grid in Supabase');
         } catch (error) {
-          console.warn('Failed to publish reordered grid:', error);
+          console.warn('Failed to store reordered grid in Supabase:', error);
+          
+          // Fallback to old method
+          try {
+            cacheUserData(notionDbId, next);
+            await storeUserDataPublic(notionDbId, next);
+            console.log('Fallback: stored grid using old method');
+          } catch (fallbackError) {
+            console.warn('Fallback also failed:', fallbackError);
+          }
         }
       }
     }

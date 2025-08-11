@@ -92,9 +92,8 @@ async function loadPublicUserGrid(notionDbId) {
 // Get or create anonymous user (for cases where we need a user ID)
 async function getOrCreateAnonymousUser(sessionKey) {
   try {
-    // For anonymous users, we can use a deterministic ID based on session
-    // In production, you might want to use proper session management
-    const userId = `anon_${sessionKey}`
+    // For anonymous users, we can use a string ID with prefix
+    const userId = `session_${sessionKey}`
     return userId
   } catch (error) {
     console.error('Error creating anonymous user:', error)

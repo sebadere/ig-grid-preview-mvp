@@ -126,37 +126,58 @@ export async function loadRowsForUser(databaseId) {
       
       console.log('Loaded fresh data from Notion for:', databaseId, transformedResults.length, 'items');
       
-      // Check if we have custom order from public store and apply it
+      // Try to get custom order from Supabase first, then fallback to public store
+      let customOrder = null;
+      
       try {
-        const publicResponse = await fetch(`/api/public/user-data?user=${databaseId}`);
-        if (publicResponse.ok) {
-          const publicData = await publicResponse.json();
-          if (publicData.results && publicData.results.length > 0) {
-            // Apply custom order by matching IDs from public store
-            const orderedByStudio = publicData.results;
-            const notionById = transformedResults.reduce((acc, item) => {
-              acc[item.id] = item;
-              return acc;
-            }, {});
-            
-            // Use Studio order but with fresh Notion data
-            const reordered = orderedByStudio
-              .map(studioItem => notionById[studioItem.id] || studioItem)
-              .filter(Boolean);
-            
-            // Add any new Notion items not in Studio order at the end
-            const studioIds = new Set(orderedByStudio.map(item => item.id));
-            const newItems = transformedResults.filter(item => !studioIds.has(item.id));
-            
-            const finalResults = [...reordered, ...newItems];
-            
-            // Cache and return
-            try { localStorage.setItem(userCacheKey, JSON.stringify(finalResults)); } catch {}
-            return finalResults;
-          }
+        // Try Supabase first (client-side)
+        const { loadPublicUserGrid } = await import('../supabase');
+        customOrder = await loadPublicUserGrid(databaseId);
+        if (customOrder) {
+          console.log('Found custom order in Supabase');
         }
-      } catch (e) {
-        console.warn('Failed to apply custom order:', e);
+      } catch (supabaseError) {
+        console.warn('Failed to load from Supabase:', supabaseError);
+      }
+      
+      // Fallback to public API
+      if (!customOrder) {
+        try {
+          const publicResponse = await fetch(`/api/public/user-data?user=${databaseId}`);
+          if (publicResponse.ok) {
+            const publicData = await publicResponse.json();
+            if (publicData.results && publicData.results.length > 0) {
+              customOrder = publicData.results;
+              console.log('Found custom order in public API');
+            }
+          }
+        } catch (e) {
+          console.warn('Failed to load from public API:', e);
+        }
+      }
+      
+      // Apply custom order if found
+      if (customOrder) {
+        // Apply custom order by matching IDs
+        const notionById = transformedResults.reduce((acc, item) => {
+          acc[item.id] = item;
+          return acc;
+        }, {});
+        
+        // Use custom order but with fresh Notion data
+        const reordered = customOrder
+          .map(studioItem => notionById[studioItem.id] || studioItem)
+          .filter(Boolean);
+        
+        // Add any new Notion items not in custom order at the end
+        const customIds = new Set(customOrder.map(item => item.id));
+        const newItems = transformedResults.filter(item => !customIds.has(item.id));
+        
+        const finalResults = [...reordered, ...newItems];
+        
+        // Cache and return
+        try { localStorage.setItem(userCacheKey, JSON.stringify(finalResults)); } catch {}
+        return finalResults;
       }
       
       // No custom order, use Notion order
