@@ -110,34 +110,9 @@ export async function loadRowsForUser(databaseId) {
     return DEMO_ROWS.slice(0, 9);
   }
   
-  // First, try to get cached data for this user
   const userCacheKey = `user-data-${databaseId}`;
-  try {
-    const cached = localStorage.getItem(userCacheKey);
-    if (cached) {
-      const parsed = JSON.parse(cached);
-      if (parsed && parsed.length > 0) {
-        return parsed;
-      }
-    }
-  } catch (error) {
-    console.warn('Failed to load cached data for user:', databaseId, error);
-  }
   
-  // Prefer public user-data first so embeds mirror Studio's latest order
-  try {
-    const publicResponse = await fetch(`/api/public/user-data?user=${databaseId}`);
-    if (publicResponse.ok) {
-      const publicData = await publicResponse.json();
-      if (publicData.results && publicData.results.length > 0) {
-        // Cache for future requests
-        try { localStorage.setItem(userCacheKey, JSON.stringify(publicData.results)); } catch {}
-        return publicData.results;
-      }
-    }
-  } catch {}
-
-  // If nothing public is available, fetch fresh data from Notion (if authenticated)
+  // First, try to fetch fresh data from Notion (prioritize fresh content)
   try {
     const response = await getJSON(`/api/notion/posts?database_id=${databaseId}`);
     if (response.results && response.results.length > 0) {
@@ -151,24 +126,75 @@ export async function loadRowsForUser(databaseId) {
       
       console.log('Loaded fresh data from Notion for:', databaseId, transformedResults.length, 'items');
       
-      // Cache the data for future embed requests
+      // Check if we have custom order from public store and apply it
       try {
-        localStorage.setItem(userCacheKey, JSON.stringify(transformedResults));
+        const publicResponse = await fetch(`/api/public/user-data?user=${databaseId}`);
+        if (publicResponse.ok) {
+          const publicData = await publicResponse.json();
+          if (publicData.results && publicData.results.length > 0) {
+            // Apply custom order by matching IDs from public store
+            const orderedByStudio = publicData.results;
+            const notionById = transformedResults.reduce((acc, item) => {
+              acc[item.id] = item;
+              return acc;
+            }, {});
+            
+            // Use Studio order but with fresh Notion data
+            const reordered = orderedByStudio
+              .map(studioItem => notionById[studioItem.id] || studioItem)
+              .filter(Boolean);
+            
+            // Add any new Notion items not in Studio order at the end
+            const studioIds = new Set(orderedByStudio.map(item => item.id));
+            const newItems = transformedResults.filter(item => !studioIds.has(item.id));
+            
+            const finalResults = [...reordered, ...newItems];
+            
+            // Cache and return
+            try { localStorage.setItem(userCacheKey, JSON.stringify(finalResults)); } catch {}
+            return finalResults;
+          }
+        }
       } catch (e) {
-        console.warn('Failed to cache user data:', e);
+        console.warn('Failed to apply custom order:', e);
       }
-      // Store in public API for embed access
-      await storeUserDataPublic(databaseId, transformedResults);
+      
+      // No custom order, use Notion order
+      try { localStorage.setItem(userCacheKey, JSON.stringify(transformedResults)); } catch {}
       return transformedResults;
     }
   } catch (error) {
     console.warn('Failed to fetch fresh data from Notion for database:', databaseId, error);
   }
 
-  // No public or Notion data
+  // Fallback to public store data
+  try {
+    const publicResponse = await fetch(`/api/public/user-data?user=${databaseId}`);
+    if (publicResponse.ok) {
+      const publicData = await publicResponse.json();
+      if (publicData.results && publicData.results.length > 0) {
+        console.log('Using public store fallback for:', databaseId);
+        try { localStorage.setItem(userCacheKey, JSON.stringify(publicData.results)); } catch {}
+        return publicData.results;
+      }
+    }
+  } catch {}
 
+  // Fallback to cached data
+  try {
+    const cached = localStorage.getItem(userCacheKey);
+    if (cached) {
+      const parsed = JSON.parse(cached);
+      if (parsed && parsed.length > 0) {
+        console.log('Using cached fallback for:', databaseId);
+        return parsed;
+      }
+    }
+  } catch (error) {
+    console.warn('Failed to load cached data for user:', databaseId, error);
+  }
   
-  // Fallback to demo data if no results or error
+  // Final fallback to demo data
   return DEMO_ROWS.slice(0, 9);
 }
 
