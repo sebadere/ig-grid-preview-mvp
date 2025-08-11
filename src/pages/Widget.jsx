@@ -7,6 +7,7 @@ import { loadRows, loadRowsAsync, loadRowsForUser, checkForNotionChanges } from 
 export default function Widget(){
   const [params] = useSearchParams()
   const [rows, setRows] = useState(loadRows())
+  const [loading, setLoading] = useState(false)
   const gap = Number(params.get('gap') || 2)
   const radius = Number(params.get('radius') || 6)
   const cols = Number(params.get('cols') || 3)
@@ -75,11 +76,37 @@ export default function Widget(){
     };
   }, [userId])
 
+  async function handleRefresh(){
+    if (loading) return;
+    setLoading(true);
+    try {
+      if (userId) {
+        const fresh = await loadRowsForUser(userId);
+        setRows(fresh);
+      } else {
+        const fresh = await loadRowsAsync();
+        setRows(fresh);
+      }
+    } catch (e) {
+      console.warn('Widget refresh failed', e);
+    } finally {
+      setLoading(false);
+    }
+  }
+
   return (
-    <div className="h-[calc(100vh-1px)] w-full flex items-center justify-center p-2 no-scrollbar">
-      <PhoneFrame>
-        <Grid rows={rows} gap={gap} radius={radius} cols={cols} id="gridEmbed" />
-      </PhoneFrame>
+    <div className="h-[calc(100vh-1px)] w-full flex flex-col p-2 no-scrollbar">
+      <div className="flex items-center justify-between pb-2 text-xs text-white/80" style={{display: embed ? 'flex' : 'none'}}>
+        <div>Instagram Grid</div>
+        <button onClick={handleRefresh} className="px-2 py-1 rounded bg-white/10 hover:bg-white/20">
+          {loading ? 'Refreshing…' : 'Refresh'}
+        </button>
+      </div>
+      <div className="flex-1 flex items-center justify-center">
+        <PhoneFrame>
+          <Grid rows={rows} gap={gap} radius={radius} cols={cols} id="gridEmbed" />
+        </PhoneFrame>
+      </div>
     </div>
   )
 }
