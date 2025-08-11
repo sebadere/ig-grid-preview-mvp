@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react'
 import PhoneFrame from '../components/PhoneFrame'
 import Grid from '../components/Grid'
-import { DEMO_ROWS, loadRows, loadRowsAsync, saveRows, isNotionConnected, logoutFromNotion, checkForNotionChanges, updateNotionOrder, storeContentHash } from '../lib/data'
+import { DEMO_ROWS, loadRows, loadRowsAsync, saveRows, isNotionConnected, logoutFromNotion, checkForNotionChanges, storeContentHash, storeUserDataPublic, cacheUserData } from '../lib/data'
 import { Link } from 'react-router-dom'
 
 export default function Studio(){
@@ -96,19 +96,19 @@ export default function Studio(){
     const [moved] = next.splice(from,1)
     next.splice(to,0,moved)
     setRows(next)
-    
-    // If connected to Notion, update the order in the database
+
+    // If connected, publish the new order to our public store so embeds mirror Studio exactly
     if (isConnected) {
       const notionDbId = localStorage.getItem('notionDbId');
       if (notionDbId && next.length > 0) {
         try {
-          const orderedIds = next.map(row => row.id).filter(Boolean);
-          if (orderedIds.length > 0) {
-            console.log('Updating order in Notion...');
-            await updateNotionOrder(notionDbId, orderedIds);
-          }
+          // Cache locally for current user
+          cacheUserData(notionDbId, next);
+          // Publish to public API for embeds
+          await storeUserDataPublic(notionDbId, next);
+          console.log('Published reordered grid to public store');
         } catch (error) {
-          console.warn('Failed to update order in Notion:', error);
+          console.warn('Failed to publish reordered grid:', error);
         }
       }
     }

@@ -24,31 +24,48 @@ module.exports = async (req, res) => {
   }
 
   try {
-    // Query the database for pages
-    const response = await fetch(`https://api.notion.com/v1/databases/${databaseId}/query`, {
+    // Build two query payloads:
+    // 1) Prefer explicit user ordering via a number property named "Order" (ascending)
+    //    then fall back to created_time ascending to keep a stable visual order.
+    // 2) If the database doesn't have an "Order" property, fall back to created_time ascending only.
+    const baseHeaders = {
+      'Authorization': `Bearer ${token}`,
+      'Notion-Version': '2022-06-28',
+      'Content-Type': 'application/json'
+    };
+
+    const preferOrderPayload = {
+      page_size: 50,
+      sorts: [
+        { property: 'Order', direction: 'ascending' },
+        { timestamp: 'created_time', direction: 'ascending' }
+      ]
+    };
+
+    const fallbackPayload = {
+      page_size: 50,
+      sorts: [
+        { timestamp: 'created_time', direction: 'descending' }
+      ]
+    };
+
+    // First attempt: try sorting by custom Order property
+    let response = await fetch(`https://api.notion.com/v1/databases/${databaseId}/query`, {
       method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${token}`,
-        'Notion-Version': '2022-06-28',
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({
-        page_size: 50,
-        sorts: [
-          {
-            property: 'Order',
-            direction: 'ascending'
-          },
-          {
-            timestamp: 'created_time', 
-            direction: 'descending'
-          }
-        ]
-      })
+      headers: baseHeaders,
+      body: JSON.stringify(preferOrderPayload)
     });
 
+    // If the first attempt fails for any reason (e.g., property not found), retry with fallback
+    if (!response.ok) {
+      response = await fetch(`https://api.notion.com/v1/databases/${databaseId}/query`, {
+        method: 'POST',
+        headers: baseHeaders,
+        body: JSON.stringify(fallbackPayload)
+      });
+    }
+
     const data = await response.json();
-    
     if (!response.ok) {
       res.statusCode = response.status;
       return res.end(`Notion API error: ${JSON.stringify(data)}`);

@@ -34,8 +34,8 @@ module.exports = async (req, res) => {
         return res.end('Missing databaseId or orderedIds array');
       }
 
-      // Update each page with an order property
-      // Note: This requires your Notion database to have a "Order" number property
+      // Try to update each page with an order property
+      // First check if Order property exists by trying to update one page
       const updatePromises = orderedIds.map(async (pageId, index) => {
         try {
           const response = await fetch(`https://api.notion.com/v1/pages/${pageId}`, {
@@ -55,7 +55,11 @@ module.exports = async (req, res) => {
           });
 
           if (!response.ok) {
-            console.warn(`Failed to update order for page ${pageId}:`, await response.text());
+            const errorText = await response.text();
+            if (errorText.includes('Could not find property')) {
+              return { pageId, success: false, error: 'Order property not found - please add an "Order" number property to your database' };
+            }
+            console.warn(`Failed to update order for page ${pageId}:`, errorText);
             return { pageId, success: false, error: response.status };
           }
 

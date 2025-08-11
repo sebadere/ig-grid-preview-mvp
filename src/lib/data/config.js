@@ -124,7 +124,20 @@ export async function loadRowsForUser(databaseId) {
     console.warn('Failed to load cached data for user:', databaseId, error);
   }
   
-  // Try to fetch fresh data from Notion first (if authenticated)
+  // Prefer public user-data first so embeds mirror Studio's latest order
+  try {
+    const publicResponse = await fetch(`/api/public/user-data?user=${databaseId}`);
+    if (publicResponse.ok) {
+      const publicData = await publicResponse.json();
+      if (publicData.results && publicData.results.length > 0) {
+        // Cache for future requests
+        try { localStorage.setItem(userCacheKey, JSON.stringify(publicData.results)); } catch {}
+        return publicData.results;
+      }
+    }
+  } catch {}
+
+  // If nothing public is available, fetch fresh data from Notion (if authenticated)
   try {
     const response = await getJSON(`/api/notion/posts?database_id=${databaseId}`);
     if (response.results && response.results.length > 0) {
@@ -152,25 +165,7 @@ export async function loadRowsForUser(databaseId) {
     console.warn('Failed to fetch fresh data from Notion for database:', databaseId, error);
   }
 
-  // Fallback: Try to load from public API (works in embed contexts, no CORS issues)
-  try {
-    const publicResponse = await fetch(`/api/public/user-data?user=${databaseId}`);
-    if (publicResponse.ok) {
-      const publicData = await publicResponse.json();
-      if (publicData.results && publicData.results.length > 0) {
-        console.log('Loaded user data from public API fallback for:', databaseId);
-        // Cache for future use
-        try {
-          localStorage.setItem(userCacheKey, JSON.stringify(publicData.results));
-        } catch (e) {
-          console.warn('Failed to cache public data:', e);
-        }
-        return publicData.results;
-      }
-    }
-  } catch (error) {
-    console.warn('Failed to load public user data:', error);
-  }
+  // No public or Notion data
 
   
   // Fallback to demo data if no results or error
@@ -211,6 +206,8 @@ export async function checkForNotionChanges(databaseId) {
     const url = `/api/notion/sync?database_id=${databaseId}${lastHash ? `&last_hash=${lastHash}` : ''}`;
     
     const response = await getJSON(url);
+
+    console.log('response', response);
     
     // Store the new hash for next comparison
     if (response.currentHash) {

@@ -36,41 +36,64 @@ module.exports = async (req, res) => {
   }
 
   try {
-    // Query the database for all current data
-    const response = await fetch(`https://api.notion.com/v1/databases/${databaseId}/query`, {
+    console.log('entro loca');
+    // Query the database for all current data using the same sort as posts.js
+    const baseHeaders = {
+      'Authorization': `Bearer ${token}`,
+      'Notion-Version': '2022-06-28',
+      'Content-Type': 'application/json'
+    };
+
+    // const preferOrderPayload = {
+    //   page_size: 50,
+    //   sorts: [
+    //     { property: 'Order', direction: 'ascending' },
+    //     { timestamp: 'created_time', direction: 'ascending' }
+    //   ]
+    // };
+
+    const fallbackPayload = {
+      page_size: 50,
+      sorts: [
+        { timestamp: 'created_time', direction: 'descending' }
+      ]
+    };
+
+    let response = await fetch(`https://api.notion.com/v1/databases/${databaseId}/query`, {
       method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${token}`,
-        'Notion-Version': '2022-06-28',
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({
-        page_size: 50,
-        sorts: [
-          {
-            property: 'Order',
-            direction: 'ascending'
-          },
-          {
-            timestamp: 'created_time',
-            direction: 'descending'
-          }
-        ]
-      })
+      headers: baseHeaders
+      //body: JSON.stringify(preferOrderPayload)
     });
 
+    if (!response.ok) {
+      response = await fetch(`https://api.notion.com/v1/databases/${databaseId}/query`, {
+        method: 'POST',
+        headers: baseHeaders,
+        body: JSON.stringify(fallbackPayload)
+      });
+    }
+
     const data = await response.json();
+
+    console.log('data', data);
     
     if (!response.ok) {
       res.statusCode = response.status;
       return res.end(`Notion API error: ${JSON.stringify(data)}`);
     }
 
-    // Create a hash of the current data structure (ids + order + last_edited times)
+    // Create a hash of the current data structure (ids + content + last_edited times)
     const contentString = (data.results || []).map(page => {
-      const orderProperty = Object.values(page.properties || {}).find(prop => prop.type === 'number');
-      const order = orderProperty?.number || 0;
-      return `${page.id}:${order}:${page.last_edited_time}`;
+      // Get title content
+      let title = 'Untitled';
+      for (const [key, property] of Object.entries(page.properties || {})) {
+        if (property.type === 'title' && property.title?.[0]?.plain_text) {
+          title = property.title[0].plain_text;
+          break;
+        }
+      }
+      
+      return `${page.id}:${title}:${page.last_edited_time}`;
     }).join('|');
     
     // Simple hash function
