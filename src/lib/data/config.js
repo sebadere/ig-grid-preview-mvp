@@ -275,25 +275,46 @@ export async function updateNotionOrder(databaseId, orderedIds) {
   }
 }
 
+// Get or create user session for anonymous users
+export async function getUserSession() {
+  // Check if we already have a session stored
+  let sessionId = localStorage.getItem('user-session-id');
+  if (!sessionId) {
+    // Generate a unique session ID for this browser
+    sessionId = `session_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    localStorage.setItem('user-session-id', sessionId);
+  }
+  return sessionId;
+}
+
 // Function to store user data in public API for embed access
 export async function storeUserDataPublic(databaseId, data) {
   if (!databaseId || !data) return;
   
   try {
-    const response = await fetch(`${API_BASE}/api/public/user-data?user=${databaseId}`, {
+    const sessionId = await getUserSession();
+    
+    const response = await fetch(`${API_BASE}/api/public/user-data?user=${databaseId}&session=${sessionId}`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
+        'X-Session-ID': sessionId
       },
       body: JSON.stringify({ data })
     });
     
     if (response.ok) {
-      console.log('Successfully stored user data in public API');
+      const result = await response.json();
+      console.log('Successfully stored user data in Supabase:', result);
+      
+      // Store the user ID for future requests
+      if (result.userId) {
+        localStorage.setItem('supabase-user-id', result.userId);
+      }
     } else {
-      console.warn('Failed to store user data in public API:', response.status);
+      console.warn('Failed to store user data in Supabase:', response.status);
     }
   } catch (error) {
-    console.warn('Failed to store user data in public API:', error);
+    console.warn('Failed to store user data in Supabase:', error);
   }
 }

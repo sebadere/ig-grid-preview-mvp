@@ -1,28 +1,5 @@
-// Simple file-based storage for user data (persists across restarts)
-// In production, you'd use a database like Supabase
-const fs = require('fs');
-const path = require('path');
-
-const DATA_FILE = path.join(process.cwd(), '.user-data.json');
-
-// Load existing data
-let userData = {};
-try {
-  if (fs.existsSync(DATA_FILE)) {
-    userData = JSON.parse(fs.readFileSync(DATA_FILE, 'utf8'));
-  }
-} catch (error) {
-  console.warn('Failed to load user data:', error);
-}
-
-// Save data to file
-function saveUserData() {
-  try {
-    fs.writeFileSync(DATA_FILE, JSON.stringify(userData, null, 2));
-  } catch (error) {
-    console.warn('Failed to save user data:', error);
-  }
-}
+// Supabase-based storage for user data (multi-user support)
+const { storeUserGrid, loadPublicUserGrid, getOrCreateAnonymousUser } = require('../lib/supabase-server');
 
 module.exports = async (req, res) => {
   // Add CORS headers for cross-origin requests (Notion embeds)
@@ -38,27 +15,34 @@ module.exports = async (req, res) => {
   }
 
   const url = new URL(req.url, 'http://x');
-  const userId = url.searchParams.get('user');
+  const notionDbId = url.searchParams.get('user'); // This is actually the notion DB ID
+  const sessionKey = url.searchParams.get('session') || req.headers['x-session-id'] || 'default';
 
   if (req.method === 'GET') {
     // Serve user data publicly (for embeds)
-    if (!userId) {
+    if (!notionDbId) {
       res.statusCode = 400;
       return res.end('Missing user parameter');
     }
 
-    const data = userData[userId];
-    if (!data) {
-      res.statusCode = 404;
-      return res.end('User data not found');
+    try {
+      const data = await loadPublicUserGrid(notionDbId);
+      if (!data) {
+        res.statusCode = 404;
+        return res.end('User data not found');
+      }
+
+      res.setHeader('Content-Type', 'application/json');
+      res.end(JSON.stringify({ results: data }));
+    } catch (error) {
+      console.error('Error loading public user data:', error);
+      res.statusCode = 500;
+      res.end('Server error');
     }
 
-    res.setHeader('Content-Type', 'application/json');
-    res.end(JSON.stringify({ results: data }));
-
   } else if (req.method === 'POST') {
-    // Store user data (authenticated endpoint)
-    if (!userId) {
+    // Store user data
+    if (!notionDbId) {
       res.statusCode = 400;
       return res.end('Missing user parameter');
     }
@@ -68,21 +52,29 @@ module.exports = async (req, res) => {
       body += chunk.toString();
     });
 
-    req.on('end', () => {
+    req.on('end', async () => {
       try {
-        const { data } = JSON.parse(body);
-        userData[userId] = data;
-        saveUserData(); // Persist to file
+        const { data, userId } = JSON.parse(body);
         
-        console.log(`Stored ${data.length} items for user ${userId}`);
+        // Use provided userId or create anonymous user
+        const finalUserId = userId || await getOrCreateAnonymousUser(sessionKey);
+        
+        if (!finalUserId) {
+          res.statusCode = 500;
+          return res.end('Failed to create user session');
+        }
+
+        await storeUserGrid(finalUserId, notionDbId, data);
+        
+        console.log(`Stored ${data.length} items for user ${finalUserId}, notion DB: ${notionDbId}`);
         console.log('Sample data:', data[0]);
         
         res.setHeader('Content-Type', 'application/json');
-        res.end(JSON.stringify({ success: true, stored: data.length }));
+        res.end(JSON.stringify({ success: true, stored: data.length, userId: finalUserId }));
       } catch (error) {
         console.error('Error storing data:', error);
-        res.statusCode = 400;
-        res.end('Invalid JSON');
+        res.statusCode = 500;
+        res.end('Server error');
       }
     });
 
