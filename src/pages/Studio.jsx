@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react'
 import PhoneFrame from '../components/PhoneFrame'
 import Grid from '../components/Grid'
-import { DEMO_ROWS, loadRows, loadRowsAsync, saveRows, isNotionConnected, logoutFromNotion, checkForNotionChanges, storeContentHash, storeUserDataPublic, cacheUserData } from '../lib/data'
+import { DEMO_ROWS, loadRows, loadRowsAsync, saveRows, isNotionConnected, logoutFromNotion, updateNotionOrder } from '../lib/data'
 import { storeUserGrid } from '../lib/supabase'
 import { Link } from 'react-router-dom'
 
@@ -18,27 +18,7 @@ export default function Studio(){
   useEffect(() => {
     // Load data on component mount
     refreshData();
-    
-    // Set up polling for Notion changes if connected
-    if (isConnected) {
-      const notionDbId = localStorage.getItem('notionDbId');
-      if (notionDbId) {
-        const pollInterval = setInterval(async () => {
-          try {
-            const hasChanges = await checkForNotionChanges(notionDbId);
-            if (hasChanges) {
-              console.log('Notion changes detected, refreshing...');
-              refreshData();
-            }
-          } catch (error) {
-            console.warn('Failed to check for changes:', error);
-          }
-        }, 10000); // Check every 10 seconds
-        
-        return () => clearInterval(pollInterval);
-      }
-    }
-  }, [isConnected])
+  }, [])
 
   async function refreshData() {
     setLoading(true);
@@ -224,7 +204,7 @@ export default function Studio(){
               {isConnected && (
                 <div className="p-3 text-center">
                   <div className="text-xs text-[var(--muted)] mb-2">
-                    Data synced from Notion • Changes update in real-time
+                    Data from Notion database • Click sync to get latest changes
                   </div>
                   <Link 
                     to="/onboarding" 
@@ -239,66 +219,88 @@ export default function Studio(){
 
           {/* Right: Controls + Preview + Link */}
           <div className="space-y-4">
-            <div className="rounded-2xl border border-[var(--notion-border)] bg-[var(--notion-card)] p-4">
-              <div className="flex items-center gap-2">
-                <button 
-                  onClick={refreshData} 
-                  disabled={loading}
-                  className="px-3 py-1.5 rounded-lg border border-[var(--notion-border)] bg-[var(--notion-card)] disabled:opacity-50"
-                >
-                  {loading ? 'Refreshing...' : 'Refresh'}
-                </button>
-                {isConnected && (
-                  <button 
-                    onClick={async () => {
-                      const notionDbId = localStorage.getItem('notionDbId');
-                      if (notionDbId) {
-                        console.log('Manual sync check...');
-                        const hasChanges = await checkForNotionChanges(notionDbId);
-                        console.log('Has changes:', hasChanges);
-                        if (hasChanges) {
-                          refreshData();
-                        } else {
-                          alert('No changes detected');
-                        }
-                      }
-                    }}
-                    disabled={loading}
-                    className="px-3 py-1.5 rounded-lg border border-[var(--notion-border)] bg-[var(--notion-card)] disabled:opacity-50 text-xs"
-                  >
-                    Check Sync
-                  </button>
-                )}
-                {isConnected ? (
-                  <div className="flex items-center gap-2">
-                    <div className="px-2 py-1 text-xs bg-green-100 text-green-800 rounded">
-                      📊 Connected: {notionDbTitle || 'Notion DB'}
-                    </div>
+            <div className="rounded-2xl border border-[var(--notion-border)] bg-[var(--notion-card)] p-4 space-y-4">
+              {/* Top Row: Sync Button + Status */}
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  {isConnected ? (
                     <button 
-                      onClick={handleLogout}
+                      onClick={refreshData} 
                       disabled={loading}
-                      className="px-2 py-1 text-xs bg-red-100 text-red-700 rounded hover:bg-red-200 disabled:opacity-50"
-                      title="Disconnect from Notion and return to demo data"
+                      className="px-4 py-2 rounded-lg bg-blue-600 text-white disabled:opacity-50 hover:bg-blue-700 font-medium"
                     >
-                      Logout
+                      {loading ? 'Syncing...' : '🔄 Sync from Notion'}
                     </button>
-                  </div>
-                ) : (
-                  <div className="flex items-center gap-2">
-                    <div className="px-2 py-1 text-xs bg-gray-100 text-gray-600 rounded">
-                      📄 Demo data
-                    </div>
-                    <Link 
-                      to="/onboarding" 
-                      className="px-2 py-1 text-xs bg-blue-100 text-blue-700 rounded hover:bg-blue-200"
+                  ) : (
+                    <button 
+                      onClick={refreshData} 
+                      disabled={loading}
+                      className="px-4 py-2 rounded-lg border border-[var(--notion-border)] bg-[var(--notion-card)] disabled:opacity-50 hover:bg-gray-50"
                     >
-                      Connect Notion
-                    </Link>
-                  </div>
-                )}
-                <div className="ml-auto flex items-center gap-6 text-sm">
-                  <label className="flex items-center gap-2">Gap <input type="range" min="0" max="8" step="1" value={gap} onChange={e=>setGap(Number(e.target.value))} /></label>
-                  <label className="flex items-center gap-2">Radius <input type="range" min="0" max="20" step="2" value={radius} onChange={e=>setRadius(Number(e.target.value))} /></label>
+                      {loading ? 'Refreshing...' : 'Refresh'}
+                    </button>
+                  )}
+                  
+                  {isConnected ? (
+                    <div className="flex items-center gap-2">
+                      <div className="px-3 py-1.5 text-sm bg-green-100 text-green-800 rounded-lg">
+                        📊 Connected: {notionDbTitle || 'Notion DB'}
+                      </div>
+                      <button 
+                        onClick={handleLogout}
+                        disabled={loading}
+                        className="px-2 py-1 text-xs bg-red-100 text-red-700 rounded hover:bg-red-200 disabled:opacity-50"
+                        title="Disconnect from Notion and return to demo data"
+                      >
+                        Logout
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="flex items-center gap-2">
+                      <div className="px-3 py-1.5 text-sm bg-gray-100 text-gray-600 rounded-lg">
+                        📄 Demo data
+                      </div>
+                      <Link 
+                        to="/onboarding" 
+                        className="px-3 py-1.5 text-sm bg-blue-100 text-blue-700 rounded-lg hover:bg-blue-200"
+                      >
+                        Connect Notion
+                      </Link>
+                    </div>
+                  )}
+                </div>
+              </div>
+              
+              {/* Bottom Row: Controls */}
+              <div className="flex items-center justify-between pt-2 border-t border-[var(--notion-border)]">
+                <div className="text-sm text-[var(--muted)]">Grid Controls</div>
+                <div className="flex items-center gap-6">
+                  <label className="flex items-center gap-2 text-sm">
+                    <span className="min-w-[32px]">Gap</span>
+                    <input 
+                      type="range" 
+                      min="0" 
+                      max="8" 
+                      step="1" 
+                      value={gap} 
+                      onChange={e=>setGap(Number(e.target.value))}
+                      className="w-20"
+                    />
+                    <span className="text-xs text-[var(--muted)] min-w-[16px]">{gap}</span>
+                  </label>
+                  <label className="flex items-center gap-2 text-sm">
+                    <span className="min-w-[44px]">Radius</span>
+                    <input 
+                      type="range" 
+                      min="0" 
+                      max="20" 
+                      step="2" 
+                      value={radius} 
+                      onChange={e=>setRadius(Number(e.target.value))}
+                      className="w-20"
+                    />
+                    <span className="text-xs text-[var(--muted)] min-w-[16px]">{radius}</span>
+                  </label>
                 </div>
               </div>
             </div>
@@ -318,7 +320,7 @@ export default function Studio(){
                 <li>Click <span className="font-medium">Copy embed link</span>.</li>
                 <li>In Notion, type <kbd className="px-1 py-0.5 border rounded">/embed</kbd> and paste the link.</li>
                 {isConnected && (
-                  <li className="text-green-700">Your grid will automatically sync with your Notion database!</li>
+                  <li className="text-green-700">Your embed shows your Notion data. Click refresh in embed to sync changes.</li>
                 )}
               </ol>
               <div className="mt-3 flex gap-2">
@@ -327,7 +329,7 @@ export default function Studio(){
               </div>
               {isConnected && (
                 <div className="mt-2 text-xs text-[var(--muted)]">
-                  🔗 This embed is personalized for your database and will show your content to anyone who views it.
+                  🔗 This embed is personalized for your database. Use the refresh button in the embed to sync latest changes from Notion.
                 </div>
               )}
             </div>
@@ -336,7 +338,13 @@ export default function Studio(){
       </main>
 
       <footer className="border-t border-[var(--notion-border)] bg-[var(--notion-bg)]/60 px-4 py-6">
-        <div className="max-w-6xl mx-auto text-xs text-[var(--muted)]">MVP • Replace with your brand.</div>
+        <div className="max-w-6xl mx-auto flex items-center justify-between text-xs text-[var(--muted)]">
+          <div>© 2024 Instagram Grid Preview. Built for content creators.</div>
+          <div className="flex gap-4">
+            <Link to="/privacy" className="hover:text-black">Privacy Policy</Link>
+            <Link to="/terms" className="hover:text-black">Terms of Service</Link>
+          </div>
+        </div>
       </footer>
     </div>
   )

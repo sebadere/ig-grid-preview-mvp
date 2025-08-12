@@ -49,15 +49,13 @@ export async function loadRowsAsync(){
           createdTime: item.createdTime || new Date().toISOString()
         }));
         
-        console.log('Fetched from Notion:', transformedResults.length, 'items');
-        console.log('Sample item:', transformedResults[0]);
+
         
         // Save the fetched data to localStorage for offline access
         saveRows(transformedResults);
         // Also cache it for embed access
         cacheUserData(notionDbId, transformedResults);
-        // Store in public API for embed access
-        await storeUserDataPublic(notionDbId, transformedResults);
+
         return transformedResults;
       }
     } catch (error) {
@@ -124,7 +122,7 @@ export async function loadRowsForUser(databaseId) {
         createdTime: item.createdTime || new Date().toISOString()
       }));
       
-      console.log('Loaded fresh data from Notion for:', databaseId, transformedResults.length, 'items');
+
       
       // Try to get custom order from Supabase first, then fallback to public store
       let customOrder = null;

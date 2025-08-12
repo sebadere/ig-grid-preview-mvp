@@ -47,8 +47,9 @@ export default function Landing(){
       <header className="sticky top-0 z-30 border-b border-[var(--notion-border)] bg-[var(--notion-bg)]/80 backdrop-blur px-4">
         <div className="max-w-6xl mx-auto flex items-center gap-3 py-3">
           <div className="w-8 h-8 rounded-xl bg-black/90 text-white grid place-items-center text-sm font-semibold">IG</div>
-          <div className="font-semibold">Grid Preview for Notion</div>
+          <div className="font-semibold">Instagram Grid Preview</div>
           <div className="ml-auto flex items-center gap-2">
+            <Link to="/pricing" className="px-3 py-1.5 text-sm hover:text-black">Pricing</Link>
             <Link to="/studio" className="px-3 py-1.5 rounded-lg border border-[var(--notion-border)] bg-[var(--notion-card)] hover:bg-white">Open Studio</Link>
             <Link to="/widget?embed=1" className="px-3 py-1.5 rounded-lg bg-black text-white">Open Embed</Link>
             {isConnected ? (
@@ -101,7 +102,13 @@ export default function Landing(){
       </section>
 
       <footer className="border-t border-[var(--notion-border)] bg-[var(--notion-bg)]/60 px-4 py-6">
-        <div className="max-w-6xl mx-auto text-xs text-[var(--muted)]">MVP • Built for Notion creators. Replace with your brand.</div>
+        <div className="max-w-6xl mx-auto flex items-center justify-between text-xs text-[var(--muted)]">
+          <div>© 2024 Instagram Grid Preview. Built for content creators.</div>
+          <div className="flex gap-4">
+            <Link to="/privacy" className="hover:text-black">Privacy Policy</Link>
+            <Link to="/terms" className="hover:text-black">Terms of Service</Link>
+          </div>
+        </div>
       </footer>
     </div>
   )

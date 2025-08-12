@@ -36,7 +36,6 @@ module.exports = async (req, res) => {
   }
 
   try {
-    console.log('entro loca');
     // Query the database for all current data using the same sort as posts.js
     const baseHeaders = {
       'Authorization': `Bearer ${token}`,
@@ -44,13 +43,13 @@ module.exports = async (req, res) => {
       'Content-Type': 'application/json'
     };
 
-    // const preferOrderPayload = {
-    //   page_size: 50,
-    //   sorts: [
-    //     { property: 'Order', direction: 'ascending' },
-    //     { timestamp: 'created_time', direction: 'ascending' }
-    //   ]
-    // };
+    const preferOrderPayload = {
+      page_size: 50,
+      sorts: [
+        { property: 'Order', direction: 'ascending' },
+        { timestamp: 'created_time', direction: 'ascending' }
+      ]
+    };
 
     const fallbackPayload = {
       page_size: 50,
@@ -59,12 +58,14 @@ module.exports = async (req, res) => {
       ]
     };
 
+    // First attempt: try sorting by custom Order property
     let response = await fetch(`https://api.notion.com/v1/databases/${databaseId}/query`, {
       method: 'POST',
-      headers: baseHeaders
-      //body: JSON.stringify(preferOrderPayload)
+      headers: baseHeaders,
+      body: JSON.stringify(preferOrderPayload)
     });
 
+    // If the first attempt fails, retry with fallback
     if (!response.ok) {
       response = await fetch(`https://api.notion.com/v1/databases/${databaseId}/query`, {
         method: 'POST',
@@ -74,8 +75,6 @@ module.exports = async (req, res) => {
     }
 
     const data = await response.json();
-
-    console.log('data', data);
     
     if (!response.ok) {
       res.statusCode = response.status;

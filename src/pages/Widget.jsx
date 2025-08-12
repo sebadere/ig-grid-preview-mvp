@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import PhoneFrame from '../components/PhoneFrame'
 import Grid from '../components/Grid'
-import { loadRows, loadRowsAsync, loadRowsForUser, checkForNotionChanges } from '../lib/data'
+import { loadRows, loadRowsAsync, loadRowsForUser } from '../lib/data'
 
 export default function Widget(){
   const [params] = useSearchParams()
@@ -23,17 +23,13 @@ export default function Widget(){
     // Load data based on user parameter or current user
     const loadData = async () => {
       try {
-        console.log('Widget: Loading data for userId:', userId);
         if (userId) {
           // Load data for specific user from URL params
           const newRows = await loadRowsForUser(userId);
-          console.log('Widget: Loaded rows:', newRows.length, 'items');
-          console.log('Widget: Sample row:', newRows[0]);
           setRows(newRows);
         } else {
           // Load data for current user (if logged in)
           const newRows = await loadRowsAsync();
-          console.log('Widget: Loaded async rows:', newRows.length, 'items');
           setRows(newRows);
         }
       } catch (error) {
@@ -52,27 +48,8 @@ export default function Widget(){
     
     window.addEventListener('storage', handleStorageChange);
     
-    // Set up polling for Notion changes if we have a user ID
-    let pollInterval;
-    if (userId) {
-      pollInterval = setInterval(async () => {
-        try {
-          console.log('Widget: Checking for changes for user:', userId);
-          const hasChanges = await checkForNotionChanges(userId);
-          console.log('Widget: Has changes?', hasChanges);
-          if (hasChanges) {
-            console.log('Notion changes detected in widget, refreshing...');
-            loadData();
-          }
-        } catch (error) {
-          console.warn('Failed to check for changes in widget:', error);
-        }
-      }, 10000); // Check every 10 seconds
-    }
-    
     return () => {
       window.removeEventListener('storage', handleStorageChange);
-      if (pollInterval) clearInterval(pollInterval);
     };
   }, [userId])
 
