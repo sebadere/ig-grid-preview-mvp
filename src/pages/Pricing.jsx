@@ -23,9 +23,9 @@ export default function Pricing() {
     },
     pro: {
       name: 'Pro',
-      price: isAnnual ? '$8.33' : '$9.99',
-      period: isAnnual ? 'per month (billed annually)' : 'per month',
-      originalPrice: isAnnual ? '$99.99/year' : null,
+      price: '$9.99',
+      period: 'per month',
+      trialText: '7-day free trial',
       features: [
         'Connect unlimited Notion databases',
         'Real-time sync with Notion',
@@ -50,12 +50,141 @@ export default function Pricing() {
     }
   }
 
-  const handle2CheckoutPayment = (plan, annual) => {
-    // 2Checkout integration will go here
-    console.log('Initializing 2Checkout payment for:', plan, annual ? 'annual' : 'monthly')
+  const handle2CheckoutPayment = async (plan, annual) => {
+    console.log('Initializing 2Checkout payment for:', plan)
     
-    // For now, show alert - we'll implement 2Checkout next
-    alert(`🚀 2Checkout integration coming next!\n\nSelected: ${plan} (${annual ? 'Annual' : 'Monthly'})`)
+    // For now, we only have one Pro plan
+    if (plan !== 'pro') return
+    
+    try {
+      // Collect customer information
+      const email = prompt('Please enter your email address:')
+      if (!email) return
+      
+      const name = prompt('Please enter your full name:') || email
+      
+      // Initialize 2Checkout inline checkout
+      await initializeCheckout(email, name)
+      
+    } catch (error) {
+      console.error('Payment initialization error:', error)
+      alert('Payment initialization failed. Please try again.')
+    }
+  }
+
+  const getPaymentConfig = async () => {
+    try {
+      const response = await fetch('/api/payments/config')
+      const config = await response.json()
+      return config
+    } catch (error) {
+      console.error('Failed to get payment config:', error)
+      throw new Error('Payment configuration not available')
+    }
+  }
+
+  const initializeCheckout = async (email, name) => {
+    // Load 2Checkout.js if not already loaded
+    if (!window.TwoCoGlobal) {
+      await loadTwoCheckoutScript()
+    }
+
+    // Get configuration from environment/API
+    const config = await getPaymentConfig()
+    
+    // Configure 2Checkout
+    window.TwoCoGlobal.setup({
+      sellerId: config.accountNumber,
+      sandbox: config.environment === 'sandbox',
+      cartType: "STANDARD"
+    })
+
+    // Create payment form
+    const paymentData = {
+      "sellerId": config.accountNumber,
+      "publishableKey": config.publishableKey,
+      "ccNo": "",
+      "cvv": "",
+      "expMonth": "",
+      "expYear": ""
+    }
+
+    // For now, show a simple form (we'll make this prettier)
+    const cardNumber = prompt('Card Number (test: 4000000000000002):') || '4000000000000002'
+    const expMonth = prompt('Exp Month (MM):') || '12'
+    const expYear = prompt('Exp Year (YYYY):') || '2025'
+    const cvv = prompt('CVV:') || '123'
+
+    paymentData.ccNo = cardNumber
+    paymentData.expMonth = expMonth
+    paymentData.expYear = expYear
+    paymentData.cvv = cvv
+
+    try {
+      // Create payment token
+      window.TwoCoGlobal.tokenize(paymentData, (data) => {
+        if (data.response.type === 'success') {
+          console.log('✅ Payment token created:', data.response.token.token)
+          processSubscription(data.response.token.token, email, name)
+        } else {
+          console.error('❌ Tokenization failed:', data.response)
+          alert('Payment validation failed: ' + (data.response.message || 'Unknown error'))
+        }
+      })
+    } catch (error) {
+      console.error('Tokenization error:', error)
+      alert('Payment processing failed. Please try again.')
+    }
+  }
+
+  const loadTwoCheckoutScript = () => {
+    return new Promise((resolve, reject) => {
+      if (document.getElementById('twocheckout-script')) {
+        resolve()
+        return
+      }
+
+      const script = document.createElement('script')
+      script.id = 'twocheckout-script'
+      script.src = 'https://www.2checkout.com/checkout/api/2co.min.js'
+      script.onload = resolve
+      script.onerror = reject
+      document.head.appendChild(script)
+    })
+  }
+
+  const processSubscription = async (paymentToken, email, name) => {
+    try {
+      console.log('🔄 Processing subscription...')
+      
+      const response = await fetch('/api/payments/create-subscription', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          paymentToken,
+          customerEmail: email,
+          customerName: name
+        })
+      })
+
+      const result = await response.json()
+
+      if (result.success) {
+        console.log('✅ Subscription created successfully!')
+        alert(`🎉 Success! Your 7-day free trial has started!\n\nSubscription ID: ${result.subscriptionId}\nTrial ends: ${new Date(result.trialEndsAt).toLocaleDateString()}`)
+        
+        // Redirect to studio or dashboard
+        window.location.href = '/#/studio'
+      } else {
+        console.error('❌ Subscription creation failed:', result)
+        alert('Subscription creation failed: ' + (result.error || 'Unknown error'))
+      }
+    } catch (error) {
+      console.error('Subscription processing error:', error)
+      alert('Subscription processing failed. Please try again.')
+    }
   }
 
   return (
@@ -79,20 +208,7 @@ export default function Pricing() {
               Start free, upgrade when you need Notion integration
             </p>
             
-            {/* Annual/Monthly Toggle */}
-            <div className="flex items-center justify-center gap-4 mb-8">
-              <span className={`text-sm ${!isAnnual ? 'font-semibold' : 'text-[var(--muted)]'}`}>Monthly</span>
-              <button
-                onClick={() => setIsAnnual(!isAnnual)}
-                className={`relative w-12 h-6 rounded-full transition-colors ${isAnnual ? 'bg-blue-600' : 'bg-gray-300'}`}
-              >
-                <div className={`absolute w-5 h-5 bg-white rounded-full top-0.5 transition-transform ${isAnnual ? 'translate-x-6' : 'translate-x-0.5'}`} />
-              </button>
-              <span className={`text-sm ${isAnnual ? 'font-semibold' : 'text-[var(--muted)]'}`}>
-                Annual 
-                <span className="ml-1 text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded-full">Save 16%</span>
-              </span>
-            </div>
+
           </div>
 
           {/* Pricing Cards */}
@@ -144,13 +260,9 @@ export default function Pricing() {
               
               <div className="text-center mb-6">
                 <h3 className="text-xl font-semibold mb-2">{plans.pro.name}</h3>
-                <div className="text-3xl font-bold mb-1">
-                  {plans.pro.price}
-                  {plans.pro.originalPrice && (
-                    <span className="text-lg text-[var(--muted)] line-through ml-2">$9.99</span>
-                  )}
-                </div>
+                <div className="text-3xl font-bold mb-1">{plans.pro.price}</div>
                 <div className="text-sm text-[var(--muted)]">{plans.pro.period}</div>
+                <div className="text-sm font-medium text-blue-600 mt-1">{plans.pro.trialText}</div>
               </div>
               
               <ul className="space-y-3 mb-8">
