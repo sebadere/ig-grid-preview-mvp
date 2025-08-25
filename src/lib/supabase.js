@@ -1,128 +1,137 @@
 import { createClient } from '@supabase/supabase-js'
 
 // Supabase configuration
-const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || 'https://hrsgyzqdsefsjsergafd.supabase.co'
-const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imhyc2d5enFkc2Vmc2pzZXJnYWZkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTM5OTA5MzksImV4cCI6MjA2OTU2NjkzOX0.fgdmWe_0Qclri57d4uoojHEvH2zJHe8QGETxQMbK2y4'
+const SUPABASE_URL   = import.meta.env.VITE_SUPABASE_URL || 'https://hrsgyzqdsefsjsergafd.supabase.co'
+const SUPABASE_ANON  = import.meta.env.VITE_SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imhyc2d5enFkc2Vmc2pzZXJnYWZkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTM5OTA5MzksImV4cCI6MjA2OTU2NjkzOX0.fgdmWe_0Qclri57d4uoojHEvH2zJHe8QGETxQMbK2y4'
 
-export const supabase = createClient(supabaseUrl, supabaseAnonKey)
 
-// Helper function to get or create anonymous user session
-export async function getOrCreateUser() {
-  try {
-    // Check if we have a session
-    const { data: { session } } = await supabase.auth.getSession()
-    
-    if (session?.user) {
-      return session.user
-    }
-
-    // Create anonymous user if no session exists
-    const { data, error } = await supabase.auth.signInAnonymously()
-    
-    if (error) {
-      console.warn('Failed to create anonymous user:', error)
-      return null
-    }
-    
-    return data.user
-  } catch (error) {
-    console.warn('Error getting or creating user:', error)
-    return null
-  }
+if (!SUPABASE_URL || !SUPABASE_ANON) {
+  throw new Error('Missing VITE_SUPABASE_URL or VITE_SUPABASE_ANON_KEY')
 }
 
-// Store grid data for a user
-export async function storeUserGrid(notionDbId, gridData) {
-  try {
-    const user = await getOrCreateUser()
-    if (!user) {
-      throw new Error('No user session available')
-    }
+let _client
+export const supabase = (() => {
+  if (_client) return _client
+  _client = createClient(SUPABASE_URL, SUPABASE_ANON, {
+    auth: {
+      persistSession: true,
+      autoRefreshToken: true,
+      detectSessionInUrl: true,
+      flowType: 'pkce', // recommended for browser OAuth
+      storage: typeof window !== 'undefined' ? window.localStorage : undefined,
+    },
+  })
+  return _client
+})()
 
-    const { data, error } = await supabase
-      .from('user_grids')
-      .upsert({
+// ---- Auth helpers -----------------------------------------------------------
+
+/**
+ * Returns the current authenticated user or null.
+ * Note: Before login or before the OAuth callback exchanges the code,
+ * this will return null (expected).
+ */
+export async function getCurrentUser() {
+  const { data: { session } } = await supabase.auth.getSession()
+  return session?.user ?? null
+}
+
+/**
+ * Require an authenticated user. Throws if not logged in.
+ * Use in actions that must be tied to a user.
+ */
+export async function requireUser() {
+  const user = await getCurrentUser()
+  if (!user) throw new Error('No user session available')
+  return user
+}
+
+/* ----- OPTIONAL: Anonymous sessions (enable in Supabase first) --------------
+   If you want guests to save grids without an account, uncomment this and
+   use getOrCreateUser() instead of requireUser()/getCurrentUser().
+
+export async function getOrCreateUser() {
+  const { data: { session } } = await supabase.auth.getSession()
+  if (session?.user) return session.user
+
+  const { data, error } = await supabase.auth.signInAnonymously()
+  if (error) {
+    console.warn('Anonymous sign-in failed:', error.message)
+    return null
+  }
+  return data.user
+}
+------------------------------------------------------------------------------*/
+
+// ---- Data helpers -----------------------------------------------------------
+
+/**
+ * Upserts the grid for the current user + Notion DB.
+ * Requires an authenticated user (or swap to getOrCreateUser if using guests).
+ */
+export async function storeUserGrid(notionDbId, gridData) {
+  const user = await requireUser()
+
+  const { data, error } = await supabase
+    .from('user_grids')
+    .upsert(
+      {
         user_id: user.id,
         notion_db_id: notionDbId,
         grid_data: gridData,
-        updated_at: new Date().toISOString()
-      }, {
-        onConflict: 'user_id,notion_db_id'
-      })
-      .select()
+        updated_at: new Date().toISOString(),
+      },
+      { onConflict: 'user_id,notion_db_id' }
+    )
+    .select()
 
-    if (error) {
-      throw error
-    }
+  if (error) throw error
+  return data
+}
 
-    console.log('Stored grid data for user:', user.id, 'db:', notionDbId)
-    return data
-  } catch (error) {
-    console.error('Error storing user grid:', error)
+/**
+ * Loads the grid for a user + Notion DB.
+ * If userId is omitted, it loads for the current logged-in user.
+ */
+export async function loadUserGrid(notionDbId, userId = null) {
+  let targetUserId = userId
+  if (!targetUserId) {
+    const user = await getCurrentUser()
+    targetUserId = user?.id
+  }
+  if (!targetUserId) return null
+
+  const { data, error } = await supabase
+    .from('user_grids')
+    .select('grid_data, updated_at')
+    .eq('user_id', targetUserId)
+    .eq('notion_db_id', notionDbId)
+    .single()
+
+  if (error) {
+    // PGRST116 = no rows
+    if (error.code === 'PGRST116') return null
     throw error
   }
+  return data?.grid_data ?? null
 }
 
-// Load grid data for a user
-export async function loadUserGrid(notionDbId, userId = null) {
-  try {
-    // If no specific userId provided, try to get current user
-    let targetUserId = userId
-    if (!targetUserId) {
-      const user = await getOrCreateUser()
-      targetUserId = user?.id
-    }
-
-    if (!targetUserId) {
-      return null
-    }
-
-    const { data, error } = await supabase
-      .from('user_grids')
-      .select('grid_data, updated_at')
-      .eq('user_id', targetUserId)
-      .eq('notion_db_id', notionDbId)
-      .single()
-
-    if (error) {
-      if (error.code === 'PGRST116') {
-        // No data found
-        return null
-      }
-      throw error
-    }
-
-    return data?.grid_data || null
-  } catch (error) {
-    console.warn('Error loading user grid:', error)
-    return null
-  }
-}
-
-// Public function to load grid data by notion DB ID (for embeds)
+/**
+ * Public fetch: returns the most recent grid for a given Notion DB,
+ * regardless of user. Consider adding a "public" flag in prod.
+ */
 export async function loadPublicUserGrid(notionDbId) {
-  try {
-    // For public access, we need to find any user's grid for this notion DB
-    // In a real implementation, you might want to add a "public" flag
-    // For now, we'll get the most recently updated grid for this DB
-    const { data, error } = await supabase
-      .from('user_grids')
-      .select('grid_data, user_id, updated_at')
-      .eq('notion_db_id', notionDbId)
-      .order('updated_at', { ascending: false })
-      .limit(1)
-      .single()
+  const { data, error } = await supabase
+    .from('user_grids')
+    .select('grid_data, user_id, updated_at')
+    .eq('notion_db_id', notionDbId)
+    .order('updated_at', { ascending: false })
+    .limit(1)
+    .single()
 
-    if (error) {
-      if (error.code === 'PGRST116') {
-        return null
-      }
-      throw error
-    }
-
-    return data?.grid_data || null
-  } catch (error) {
-    console.warn('Error loading public user grid:', error)
-    return null
+  if (error) {
+    if (error.code === 'PGRST116') return null
+    throw error
   }
+  return data?.grid_data ?? null
 }

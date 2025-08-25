@@ -1,74 +1,43 @@
 import React, { useState } from 'react'
 import { Link } from 'react-router-dom'
+import PaymentModal from '../components/PaymentModal'
 
 export default function Pricing() {
-  const [isAnnual, setIsAnnual] = useState(false)
-
-  const plans = {
-    free: {
-      name: 'Free',
-      price: '$0',
-      period: 'forever',
-      features: [
-        'Demo grid preview',
-        'Basic customization',
-        'Export embed code',
-        'Community support'
-      ],
-      limitations: [
-        'Demo data only',
-        'Limited styling options',
-        'Instagram Grid Preview branding'
-      ]
-    },
-    pro: {
-      name: 'Pro',
-      price: '$9.99',
-      period: 'per month',
-      trialText: '7-day free trial',
-      features: [
-        'Connect unlimited Notion databases',
-        'Real-time sync with Notion',
-        'Custom grid layouts',
-        'Advanced styling options',
-        'Remove branding',
-        'Priority support',
-        'Collaboration features',
-        'Export high-res images'
-      ],
-      popular: true
-    }
+  const [showPaymentModal, setShowPaymentModal] = useState(false)
+  
+  const plan = {
+    name: 'Instagram Grid Preview Pro',
+    price: '$9.99',
+    period: 'per month',
+    trialText: '7-day free trial',
+    features: [
+      'Connect unlimited Notion databases',
+      'Real-time sync with your content',
+      'Professional Instagram grid preview',
+      'Custom grid layouts and spacing',
+      'Advanced styling and customization',
+      'Remove Instagram Grid Preview branding',
+      'Priority customer support',
+      'Shareable embed widgets',
+      'Export high-resolution grid images',
+      'Mobile-responsive preview interface'
+    ]
   }
 
-  const handleSubscribe = (plan) => {
-    if (plan === 'free') {
-      // Redirect to signup/studio
-      window.location.href = '/#/studio'
-    } else {
-      // Initialize 2Checkout payment
-      handle2CheckoutPayment(plan, isAnnual)
-    }
+  const handleSubscribe = () => {
+    setShowPaymentModal(true)
   }
 
-  const handle2CheckoutPayment = async (plan, annual) => {
-    console.log('Initializing 2Checkout payment for:', plan)
-    
-    // For now, we only have one Pro plan
-    if (plan !== 'pro') return
+  const handleProcessPayment = async (paymentData) => {
+    console.log('Processing payment with data:', paymentData)
     
     try {
-      // Collect customer information
-      const email = prompt('Please enter your email address:')
-      if (!email) return
-      
-      const name = prompt('Please enter your full name:') || email
-      
-      // Initialize 2Checkout inline checkout
-      await initializeCheckout(email, name)
-      
+      // Initialize 2Checkout inline checkout with the form data
+      await initializeCheckout(paymentData.email, paymentData.name, paymentData)
+      setShowPaymentModal(false)
     } catch (error) {
       console.error('Payment initialization error:', error)
-      alert('Payment initialization failed. Please try again.')
+      throw error // This will be caught by the PaymentModal
     }
   }
 
@@ -83,7 +52,7 @@ export default function Pricing() {
     }
   }
 
-  const initializeCheckout = async (email, name) => {
+  const initializeCheckout = async (email, name, paymentData) => {
     // Load 2Checkout.js if not already loaded
     if (!window.TwoCoGlobal) {
       await loadTwoCheckoutScript()
@@ -99,30 +68,19 @@ export default function Pricing() {
       cartType: "STANDARD"
     })
 
-    // Create payment form
-    const paymentData = {
+    // Create payment form with data from modal
+    const paymentTokenData = {
       "sellerId": config.accountNumber,
       "publishableKey": config.publishableKey,
-      "ccNo": "",
-      "cvv": "",
-      "expMonth": "",
-      "expYear": ""
+      "ccNo": paymentData.cardNumber.replace(/\s/g, ''), // Remove spaces
+      "cvv": paymentData.cvv,
+      "expMonth": paymentData.expMonth,
+      "expYear": paymentData.expYear
     }
-
-    // For now, show a simple form (we'll make this prettier)
-    const cardNumber = prompt('Card Number (test: 4000000000000002):') || '4000000000000002'
-    const expMonth = prompt('Exp Month (MM):') || '12'
-    const expYear = prompt('Exp Year (YYYY):') || '2025'
-    const cvv = prompt('CVV:') || '123'
-
-    paymentData.ccNo = cardNumber
-    paymentData.expMonth = expMonth
-    paymentData.expYear = expYear
-    paymentData.cvv = cvv
 
     try {
       // Create payment token
-      window.TwoCoGlobal.tokenize(paymentData, (data) => {
+      window.TwoCoGlobal.tokenize(paymentTokenData, (data) => {
         if (data.response.type === 'success') {
           console.log('✅ Payment token created:', data.response.token.token)
           processSubscription(data.response.token.token, email, name)
@@ -203,110 +161,95 @@ export default function Pricing() {
         <div className="max-w-6xl mx-auto px-4 py-12">
           {/* Header */}
           <div className="text-center mb-12">
-            <h1 className="text-4xl font-bold mb-4">Choose Your Plan</h1>
-            <p className="text-lg text-[var(--muted)] mb-8">
-              Start free, upgrade when you need Notion integration
+            <h1 className="text-4xl font-bold mb-4">Professional Instagram Grid Preview Tool</h1>
+            <p className="text-lg text-[var(--muted)] mb-8 max-w-3xl mx-auto">
+              Get complete control over your Instagram feed planning with our professional grid preview tool. Connect your Notion database and visualize your content strategy before posting.
             </p>
-            
-
           </div>
 
-          {/* Pricing Cards */}
-          <div className="grid md:grid-cols-2 gap-8 max-w-4xl mx-auto">
-            {/* Free Plan */}
-            <div className="rounded-2xl border border-[var(--notion-border)] bg-[var(--notion-card)] p-8">
-              <div className="text-center mb-6">
-                <h3 className="text-xl font-semibold mb-2">{plans.free.name}</h3>
-                <div className="text-3xl font-bold mb-1">{plans.free.price}</div>
-                <div className="text-sm text-[var(--muted)]">{plans.free.period}</div>
+          {/* Single Pricing Card */}
+          <div className="max-w-lg mx-auto">
+            <div className="rounded-3xl border-2 border-blue-500 bg-white shadow-xl p-10 relative">
+              <div className="absolute -top-4 left-1/2 transform -translate-x-1/2">
+                <span className="bg-blue-500 text-white text-sm font-semibold px-4 py-2 rounded-full">
+                  Professional Plan
+                </span>
               </div>
               
-              <ul className="space-y-3 mb-8">
-                {plans.free.features.map((feature, i) => (
-                  <li key={i} className="flex items-center gap-2 text-sm">
-                    <svg className="w-4 h-4 text-green-600" fill="currentColor" viewBox="0 0 20 20">
-                      <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
-                    </svg>
-                    {feature}
-                  </li>
-                ))}
-                {plans.free.limitations.map((limitation, i) => (
-                  <li key={i} className="flex items-center gap-2 text-sm text-[var(--muted)]">
-                    <svg className="w-4 h-4 text-gray-400" fill="currentColor" viewBox="0 0 20 20">
-                      <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
-                    </svg>
-                    {limitation}
-                  </li>
-                ))}
-              </ul>
-              
-              <button
-                onClick={() => handleSubscribe('free')}
-                className="w-full py-3 px-4 rounded-lg border border-[var(--notion-border)] bg-[var(--notion-card)] hover:bg-gray-50 font-medium"
-              >
-                Get Started Free
-              </button>
-            </div>
-
-            {/* Pro Plan */}
-            <div className="rounded-2xl border-2 border-blue-500 bg-[var(--notion-card)] p-8 relative">
-              {plans.pro.popular && (
-                <div className="absolute -top-3 left-1/2 transform -translate-x-1/2">
-                  <span className="bg-blue-500 text-white text-xs font-semibold px-3 py-1 rounded-full">
-                    Most Popular
-                  </span>
+              <div className="text-center mb-8">
+                <h3 className="text-2xl font-bold mb-4">{plan.name}</h3>
+                <div className="text-5xl font-bold text-blue-600 mb-2">{plan.price}</div>
+                <div className="text-lg text-[var(--muted)] mb-1">{plan.period}</div>
+                <div className="text-lg font-semibold text-green-600 mb-6">{plan.trialText}</div>
+                
+                <div className="bg-blue-50 rounded-2xl p-6 mb-8">
+                  <h4 className="font-semibold text-lg mb-4">What's Included:</h4>
+                  <ul className="space-y-3 text-left">
+                    {plan.features.map((feature, i) => (
+                      <li key={i} className="flex items-start gap-3 text-sm">
+                        <svg className="w-5 h-5 text-blue-600 mt-0.5 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                          <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                        </svg>
+                        <span>{feature}</span>
+                      </li>
+                    ))}
+                  </ul>
                 </div>
-              )}
-              
-              <div className="text-center mb-6">
-                <h3 className="text-xl font-semibold mb-2">{plans.pro.name}</h3>
-                <div className="text-3xl font-bold mb-1">{plans.pro.price}</div>
-                <div className="text-sm text-[var(--muted)]">{plans.pro.period}</div>
-                <div className="text-sm font-medium text-blue-600 mt-1">{plans.pro.trialText}</div>
               </div>
               
-              <ul className="space-y-3 mb-8">
-                {plans.pro.features.map((feature, i) => (
-                  <li key={i} className="flex items-center gap-2 text-sm">
-                    <svg className="w-4 h-4 text-blue-600" fill="currentColor" viewBox="0 0 20 20">
-                      <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
-                    </svg>
-                    {feature}
-                  </li>
-                ))}
-              </ul>
-              
               <button
-                onClick={() => handleSubscribe('pro')}
-                className="w-full py-3 px-4 rounded-lg bg-blue-600 text-white hover:bg-blue-700 font-medium"
+                onClick={handleSubscribe}
+                className="w-full py-4 px-6 rounded-xl bg-blue-600 text-white hover:bg-blue-700 font-semibold text-lg transition-colors"
               >
-                Start 7-Day Free Trial
+                Start 7-Day Free Trial - Then $9.99/month
               </button>
-              <p className="text-xs text-center text-[var(--muted)] mt-2">
-                Cancel anytime. No questions asked.
+              <p className="text-sm text-center text-[var(--muted)] mt-4">
+                ✓ Credit card required to start trial<br/>
+                ✓ Cancel anytime, no questions asked<br/>
+                ✓ 30-day money-back guarantee
               </p>
             </div>
           </div>
 
           {/* FAQ Section */}
-          <div className="mt-16 max-w-3xl mx-auto">
-            <h2 className="text-2xl font-bold text-center mb-8">Frequently Asked Questions</h2>
-            <div className="space-y-6">
-              <div>
-                <h3 className="font-semibold mb-2">Can I change plans anytime?</h3>
-                <p className="text-[var(--muted)]">Yes! Upgrade or downgrade your plan at any time. Changes take effect at your next billing cycle.</p>
+          <div className="mt-16 max-w-4xl mx-auto">
+            <h2 className="text-3xl font-bold text-center mb-12">Frequently Asked Questions</h2>
+            <div className="grid md:grid-cols-2 gap-8">
+              <div className="space-y-6">
+                <div>
+                  <h3 className="font-semibold text-lg mb-3">What exactly does Instagram Grid Preview do?</h3>
+                  <p className="text-[var(--muted)]">Instagram Grid Preview is a professional tool that connects to your Notion database and shows you exactly how your Instagram posts will look when arranged in Instagram's 3-column grid format. This helps you plan your feed aesthetics and maintain visual consistency.</p>
+                </div>
+                <div>
+                  <h3 className="font-semibold text-lg mb-3">How does the Notion integration work?</h3>
+                  <p className="text-[var(--muted)]">Simply connect your Notion account and select a database that contains your content images. Our tool will automatically sync with your database and display your images in a realistic Instagram grid layout, updating in real-time as you modify your content.</p>
+                </div>
+                <div>
+                  <h3 className="font-semibold text-lg mb-3">What's included in the 7-day free trial?</h3>
+                  <p className="text-[var(--muted)]">The free trial includes full access to all Pro features: unlimited Notion database connections, real-time sync, custom styling, embed generation, and premium support. Credit card required to start trial.</p>
+                </div>
+                <div>
+                  <h3 className="font-semibold text-lg mb-3">Is my Notion data secure?</h3>
+                  <p className="text-[var(--muted)]">Absolutely. We only access the specific database you authorize and use enterprise-grade encryption for all data transmission and storage. We never access other Notion content or store sensitive information permanently.</p>
+                </div>
               </div>
-              <div>
-                <h3 className="font-semibold mb-2">What happens to my data if I cancel?</h3>
-                <p className="text-[var(--muted)]">Your data remains accessible for 30 days after cancellation. You can export your grid configurations anytime.</p>
-              </div>
-              <div>
-                <h3 className="font-semibold mb-2">Do you offer refunds?</h3>
-                <p className="text-[var(--muted)]">Yes! We offer prorated refunds within 30 days of payment for any unused service time.</p>
-              </div>
-              <div>
-                <h3 className="font-semibold mb-2">Is my Notion data secure?</h3>
-                <p className="text-[var(--muted)]">Absolutely. We only access the specific database you choose and use industry-standard encryption for all data.</p>
+              <div className="space-y-6">
+                <div>
+                  <h3 className="font-semibold text-lg mb-3">Who is this tool designed for?</h3>
+                  <p className="text-[var(--muted)]">Instagram Grid Preview is perfect for social media managers, content creators, influencers, marketing agencies, and anyone who wants to maintain a professional and cohesive Instagram presence through strategic feed planning.</p>
+                </div>
+                <div>
+                  <h3 className="font-semibold text-lg mb-3">Can I cancel anytime?</h3>
+                  <p className="text-[var(--muted)]">Yes! You can cancel your subscription at any time with no questions asked. Your access continues until the end of your current billing period, and we offer a 30-day money-back guarantee for complete peace of mind.</p>
+                </div>
+                <div>
+                  <h3 className="font-semibold text-lg mb-3">Do you offer customer support?</h3>
+                  <p className="text-[var(--muted)]">Yes! Pro subscribers get priority customer support with response times within 24 hours. We provide help with setup, integration, troubleshooting, and any questions about maximizing your Instagram grid planning.</p>
+                </div>
+                <div>
+                  <h3 className="font-semibold text-lg mb-3">What payment methods do you accept?</h3>
+                  <p className="text-[var(--muted)]">We accept all major credit cards (Visa, Mastercard, American Express) through our secure payment processor 2Checkout. All transactions are encrypted and PCI-compliant for maximum security.</p>
+                </div>
               </div>
             </div>
           </div>
@@ -322,6 +265,13 @@ export default function Pricing() {
           </div>
         </div>
       </footer>
+
+      {/* Payment Modal */}
+      <PaymentModal
+        isOpen={showPaymentModal}
+        onClose={() => setShowPaymentModal(false)}
+        onProcessPayment={handleProcessPayment}
+      />
     </div>
   )
 }

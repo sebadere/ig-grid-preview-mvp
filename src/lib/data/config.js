@@ -1,25 +1,7 @@
-export const DEMO_ROWS = [
-  { title: 'Red chair', url: 'https://images.unsplash.com/photo-1516822271333-242b3b86aa49?q=80&w=1200&auto=format&fit=crop' },
-  { title: 'Portrait', url: 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?q=80&w=1200&auto=format&fit=crop' },
-  { title: 'City', url: 'https://images.unsplash.com/photo-1503023345310-bd7c1de61c7d?q=80&w=1200&auto=format&fit=crop' },
-  { title: 'Coffee', url: 'https://images.unsplash.com/photo-1520975661595-6453be3f7070?q=80&w=1200&auto=format&fit=crop' },
-  { title: 'Desk', url: 'https://images.unsplash.com/photo-1520975682031-6a1bf3371784?q=80&w=1200&auto=format&fit=crop' },
-  { title: 'Notebook', url: 'https://images.unsplash.com/photo-1492447166138-50c3889fccb1?q=80&w=1200&auto=format&fit=crop' },
-  { title: 'Smile', url: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?q=80&w=1200&auto=format&fit=crop' },
-  { title: 'Leaf', url: 'https://images.unsplash.com/photo-1544731612-de7f96afe55f?q=80&w=1200&auto=format&fit=crop' },
-  { title: 'Mount', url: 'https://images.unsplash.com/photo-1547425260-76bcadfb4f2c?q=80&w=1200&auto=format&fit=crop' },
-  { title: 'Wall', url: 'https://images.unsplash.com/photo-1520975592071-d2c3e636a7d0?q=80&w=1200&auto=format&fit=crop' },
-  { title: 'Studio', url: 'https://images.unsplash.com/photo-1498050108023-c5249f4df085?q=80&w=1200&auto=format&fit=crop' },
-  { title: 'Poster', url: 'https://images.unsplash.com/photo-1514989940723-e8e51635b782?q=80&w=1200&auto=format&fit=crop' }
-]
+import { API_BASE, DEMO_ROWS, STORAGE_KEYS } from '../config.js';
 
-const STATE_KEY = 'ig-grid-mvp-rows'
+const STATE_KEY = STORAGE_KEYS.GRID_ROWS
 export const STORAGE_KEY = STATE_KEY
-
-// API helper
-const API_BASE = typeof window !== 'undefined' && import.meta?.env?.DEV
-  ? (import.meta.env.VITE_API_BASE ?? 'http://localhost:3000')
-  : ''; // on prod, same origin
 
 async function getJSON(path, opts = {}) {
   const r = await fetch(`${API_BASE}${path}`, { credentials: 'include', ...opts });
@@ -34,22 +16,77 @@ export function loadRows(){
 
 export async function loadRowsAsync(){
   // Check if user has selected a Notion database
-  const notionDbId = localStorage.getItem('notionDbId');
+  const notionDbId = localStorage.getItem(STORAGE_KEYS.NOTION_DB_ID);
   
   if (notionDbId) {
     try {
       // Try to fetch from Notion first
-      const response = await getJSON(`/api/notion/posts?database_id=${notionDbId}`);
+      console.log('📡 Fetching from Notion API:', `/api/notion/posts?databaseId=${notionDbId}`);
+      const response = await getJSON(`/api/notion/posts?databaseId=${notionDbId}`);
+      console.log('📡 Notion API response:', response);
+      
       if (response.results && response.results.length > 0) {
-        // Transform to ensure proper format
-        const transformedResults = response.results.map(item => ({
-          id: item.id || `${item.title}-${Date.now()}`,
-          title: item.title || 'Untitled',
-          url: item.url || '',
-          createdTime: item.createdTime || new Date().toISOString()
-        }));
+        // Transform Notion API response to our format
+        const transformedResults = response.results.map(page => {
+          let title = 'Untitled';
+          let imageUrl = null;
+
+          // Extract title from Notion properties
+          for (const [key, property] of Object.entries(page.properties || {})) {
+            if (property.type === 'title' && property.title?.[0]?.plain_text) {
+              title = property.title[0].plain_text;
+            }
+            // Look for Name property as backup
+            if (key.toLowerCase() === 'name' && property.rich_text?.[0]?.plain_text) {
+              title = property.rich_text[0].plain_text;
+            }
+            // Look for files/images (highest priority)
+            if (property.type === 'files' && property.files?.[0] && !imageUrl) {
+              const file = property.files[0];
+              if (file.type === 'external') {
+                imageUrl = file.external.url;
+              } else if (file.type === 'file') {
+                imageUrl = file.file.url;
+              }
+            }
+            // Look for URL property that might contain image URLs
+            if ((key.toLowerCase().includes('image') || key.toLowerCase().includes('url') || key.toLowerCase().includes('photo')) && property.url && !imageUrl) {
+              imageUrl = property.url;
+            }
+            // Look for rich text that might contain URLs
+            if ((key.toLowerCase().includes('image') || key.toLowerCase().includes('url') || key.toLowerCase().includes('photo')) && property.rich_text?.[0]?.plain_text && !imageUrl) {
+              const text = property.rich_text[0].plain_text;
+              if (text.startsWith('http')) {
+                imageUrl = text;
+              }
+            }
+          }
+
+          // Fallback to placeholder if no image found
+          if (!imageUrl) {
+            const fallbackImages = [
+              'https://images.unsplash.com/photo-1581833971358-2c8b550f87b3?q=80&w=1200&auto=format&fit=crop',
+              'https://images.unsplash.com/photo-1516822271333-242b3b86aa49?q=80&w=1200&auto=format&fit=crop',
+              'https://images.unsplash.com/photo-1544005313-94ddf0286df2?q=80&w=1200&auto=format&fit=crop'
+            ];
+            const index = Math.abs(page.id.split('').reduce((a, b) => ((a << 5) - a + b.charCodeAt(0)) | 0, 0)) % fallbackImages.length;
+            imageUrl = fallbackImages[index];
+          }
+
+          const transformedItem = {
+            id: page.id,
+            title,
+            url: imageUrl,
+            createdTime: page.created_time
+          };
+          
+          console.log('🔄 Transformed item:', transformedItem);
+          return transformedItem;
+        });
         
 
+        
+        console.log('✅ Final transformed results:', transformedResults);
         
         // Save the fetched data to localStorage for offline access
         saveRows(transformedResults);
@@ -82,7 +119,7 @@ export async function loadRowsAsync(){
 export function saveRows(rows){ try { localStorage.setItem(STATE_KEY, JSON.stringify(rows)) } catch(e){} }
 
 export function isNotionConnected() {
-  return Boolean(localStorage.getItem('notionDbId'));
+  return Boolean(localStorage.getItem(STORAGE_KEYS.NOTION_DB_ID));
 }
 
 export async function logoutFromNotion() {
@@ -97,8 +134,8 @@ export async function logoutFromNotion() {
   }
   
   // Clear all local Notion data
-  localStorage.removeItem('notionDbId');
-  localStorage.removeItem('notionDbTitle');
+  localStorage.removeItem(STORAGE_KEYS.NOTION_DB_ID);
+  localStorage.removeItem(STORAGE_KEYS.NOTION_DB_TITLE);
   localStorage.removeItem(STATE_KEY); // Clear cached posts
 }
 
@@ -112,7 +149,7 @@ export async function loadRowsForUser(databaseId) {
   
   // First, try to fetch fresh data from Notion (prioritize fresh content)
   try {
-    const response = await getJSON(`/api/notion/posts?database_id=${databaseId}`);
+    const response = await getJSON(`/api/notion/posts?databaseId=${databaseId}`);
     if (response.results && response.results.length > 0) {
       // Transform to ensure proper format
       const transformedResults = response.results.map(item => ({
@@ -297,11 +334,11 @@ export async function updateNotionOrder(databaseId, orderedIds) {
 // Get or create user session for anonymous users
 export async function getUserSession() {
   // Check if we already have a session stored
-  let sessionId = localStorage.getItem('user-session-id');
+  let sessionId = localStorage.getItem(STORAGE_KEYS.USER_SESSION);
   if (!sessionId) {
     // Generate a unique session ID for this browser
     sessionId = `session_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-    localStorage.setItem('user-session-id', sessionId);
+    localStorage.setItem(STORAGE_KEYS.USER_SESSION, sessionId);
   }
   return sessionId;
 }
@@ -328,7 +365,7 @@ export async function storeUserDataPublic(databaseId, data) {
       
       // Store the user ID for future requests
       if (result.userId) {
-        localStorage.setItem('supabase-user-id', result.userId);
+        localStorage.setItem(STORAGE_KEYS.SUPABASE_USER_ID, result.userId);
       }
     } else {
       console.warn('Failed to store user data in Supabase:', response.status);

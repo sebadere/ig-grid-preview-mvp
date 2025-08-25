@@ -38,10 +38,7 @@ export default function Terms() {
                   Instagram Grid Preview allows users to visualize how their Instagram posts will appear in a grid layout by connecting to their Notion databases.
                 </p>
                 <p>
-                  <strong>Free Tier:</strong> Limited to basic grid preview functionality with demo data.
-                </p>
-                <p>
-                  <strong>Pro Subscription:</strong> Full Notion integration, unlimited grids, custom styling, and premium features.
+                  <strong>Pro Subscription Service:</strong> Instagram Grid Preview provides professional Instagram feed planning through Notion database integration, real-time grid visualization, custom styling, embeddable widgets, and premium support features.
                 </p>
               </div>
             </section>
@@ -64,16 +61,16 @@ export default function Terms() {
               <h2 className="text-xl font-semibold mb-4">4. Subscription and Billing</h2>
               <div className="space-y-4 text-[var(--muted)]">
                 <p>
-                  <strong>Pro Subscription:</strong> $9.99/month, billed monthly. Cancel anytime.
+                  <strong>Subscription Plan:</strong> Instagram Grid Preview Pro is available for $9.99/month, billed monthly. Subscriptions can be cancelled at any time.
                 </p>
                 <p>
-                  <strong>Billing:</strong> Processed securely through 2Checkout. Subscriptions auto-renew unless cancelled.
+                  <strong>Billing and Payment:</strong> All payments are processed securely through 2Checkout (now Verifone). Subscriptions automatically renew monthly unless cancelled by the user.
                 </p>
                 <p>
-                  <strong>Refunds:</strong> Prorated refunds available within 30 days of payment for unused service time.
+                  <strong>Free Trial Period:</strong> New subscribers receive a 7-day free trial with full access to all Pro features. No credit card required to start the trial.
                 </p>
                 <p>
-                  <strong>Free Trial:</strong> New users receive a 7-day free trial of Pro features.
+                  <strong>Cancellation and Refunds:</strong> Cancel anytime with no questions asked. We offer a 30-day money-back guarantee and prorated refunds for unused service time.
                 </p>
               </div>
             </section>
@@ -137,8 +134,8 @@ export default function Terms() {
                 </p>
                 <ul className="list-disc pl-6 space-y-2">
                   <li>Your access to Pro features will end at the current billing period</li>
-                  <li>Your data will be deleted within 30 days unless you export it</li>
-                  <li>Free tier access may continue to be available</li>
+                  <li>Your data will be retained for 30 days to allow export or account reactivation</li>
+                  <li>Account data is permanently deleted after 30 days unless reactivated</li>
                 </ul>
               </div>
             </section>
@@ -151,7 +148,8 @@ export default function Terms() {
                 </p>
                 <p>
                   Email: support@instagramgridpreview.com<br />
-                  Response time: Within 24 hours for Pro users, 48 hours for free users
+                  Response time: Within 24 hours for Pro subscribers<br />
+                  Available: Monday - Friday, 9 AM - 6 PM EST
                 </p>
               </div>
             </section>

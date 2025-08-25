@@ -4,6 +4,7 @@ import Grid from '../components/Grid'
 import { DEMO_ROWS, loadRows, loadRowsAsync, saveRows, isNotionConnected, logoutFromNotion, updateNotionOrder } from '../lib/data'
 import { storeUserGrid } from '../lib/supabase'
 import { Link } from 'react-router-dom'
+import { STORAGE_KEYS } from '../lib/config.js'
 
 export default function Studio(){
   const [rows, setRows] = useState(loadRows())
@@ -11,9 +12,10 @@ export default function Studio(){
   const [radius, setRadius] = useState(6)
   const [loading, setLoading] = useState(false)
   const [isConnected, setIsConnected] = useState(isNotionConnected())
-  const [notionDbTitle, setNotionDbTitle] = useState(localStorage.getItem('notionDbTitle') || '')
+  const [notionDbTitle, setNotionDbTitle] = useState(localStorage.getItem(STORAGE_KEYS.NOTION_DB_TITLE) || '')
 
   useEffect(()=>{ saveRows(rows) }, [rows])
+
 
   useEffect(() => {
     // Load data on component mount
@@ -24,9 +26,12 @@ export default function Studio(){
     setLoading(true);
     try {
       const newRows = await loadRowsAsync();
+      console.log('- Loaded rows:', newRows?.length, 'items');
+      console.log('- Sample row:', newRows?.[0]);
+      
       setRows(newRows);
       setIsConnected(isNotionConnected());
-      setNotionDbTitle(localStorage.getItem('notionDbTitle') || '');
+      setNotionDbTitle(localStorage.getItem(STORAGE_KEYS.NOTION_DB_TITLE) || '');
     } catch (error) {
       console.error('Failed to refresh data:', error);
     } finally {
@@ -59,7 +64,7 @@ export default function Studio(){
     
     // Add user-specific identifier if connected to Notion
     if (isConnected) {
-      const notionDbId = localStorage.getItem('notionDbId');
+      const notionDbId = localStorage.getItem(STORAGE_KEYS.NOTION_DB_ID);
       if (notionDbId) {
         params.set('user', notionDbId);
       }
@@ -80,7 +85,7 @@ export default function Studio(){
 
     // If connected, store the new order in Supabase so embeds mirror Studio exactly
     if (isConnected) {
-      const notionDbId = localStorage.getItem('notionDbId');
+      const notionDbId = localStorage.getItem(STORAGE_KEYS.NOTION_DB_ID);
       if (notionDbId && next.length > 0) {
         try {
           // Store in Supabase with user session

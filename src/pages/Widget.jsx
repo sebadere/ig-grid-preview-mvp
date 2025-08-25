@@ -3,6 +3,7 @@ import { useSearchParams } from 'react-router-dom'
 import PhoneFrame from '../components/PhoneFrame'
 import Grid from '../components/Grid'
 import { loadRows, loadRowsAsync, loadRowsForUser } from '../lib/data'
+import { STORAGE_KEYS } from '../lib/config.js'
 
 export default function Widget(){
   const [params] = useSearchParams()
@@ -41,7 +42,7 @@ export default function Widget(){
 
     // Listen for storage changes (logout/login in other tabs)
     const handleStorageChange = (e) => {
-      if (e.key === 'notionDbId' || e.key === 'ig-grid-mvp-rows') {
+      if (e.key === STORAGE_KEYS.NOTION_DB_ID || e.key === STORAGE_KEYS.GRID_ROWS) {
         loadData();
       }
     };

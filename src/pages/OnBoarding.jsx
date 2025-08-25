@@ -1,12 +1,8 @@
 import React from 'react'
 import { useEffect, useMemo, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
-
-
-// add at top (near other imports)
-const API_BASE = import.meta.env.DEV
-  ? (import.meta.env.VITE_API_BASE ?? 'http://localhost:3000')
-  : ''; // on prod, same origin
+import { supabase } from '../lib/supabase'
+import { API_BASE, STORAGE_KEYS } from '../lib/config.js'
 
 async function getJSON(path, opts = {}) {
   const r = await fetch(`${API_BASE}${path}`, { credentials: 'include', ...opts });
@@ -14,15 +10,29 @@ async function getJSON(path, opts = {}) {
   return r.json();
 }
 
-export default function Onboarding(){
+export default function Onboarding() {
   const [params] = useSearchParams()
-  const [status, setStatus] = useState({ connected:false, workspace:null })
+  const [status, setStatus] = useState({ connected: false, workspace: null })
   const [dbs, setDbs] = useState([])
   const [loading, setLoading] = useState(false)
+  const [user, setUser] = useState(null)
+  const [authLoading, setAuthLoading] = useState(true)
   const connected = params.get('connected') === '1'
 
-  useEffect(()=>{
-    (async ()=>{
+  useEffect(() => {
+    // Check user authentication first
+    const checkAuth = async () => {
+      const { data: { user } } = await supabase.auth.getUser()
+      setUser(user)
+      setAuthLoading(false)
+      
+      if (!user) {
+        // Redirect to login if not authenticated
+        window.location.href = '/#/login'
+        return
+      }
+
+      // If user is authenticated, check Notion status
       try {
         const s = await getJSON('/api/notion/status')
         setStatus(s)
@@ -30,30 +40,69 @@ export default function Onboarding(){
           const list = await getJSON('/api/notion/databases')
           setDbs(list.results || [])
         }
-      } catch(e) {
+      } catch (e) {
         // not connected yet
       }
-    })()
+    }
+    
+    checkAuth()
   }, [connected])
 
-  function connectNotion(){
+  function connectNotion() {
     window.location.href = `${API_BASE}/api/notion/start`
   }
 
-  async function logout(){
-    await fetch('/api/notion/logout', { method:'POST', credentials:'include' })
-    setStatus({ connected:false, workspace:null })
+  async function logout() {
+    await fetch('/api/notion/logout', { method: 'POST', credentials: 'include' })
+    setStatus({ connected: false, workspace: null })
     setDbs([])
   }
 
-  function pickDb(db){
-    localStorage.setItem('notionDbId', db.id)
-    localStorage.setItem('notionDbTitle', db.title || '')
+  async function signOut() {
+    await supabase.auth.signOut()
+    window.location.href = '/#/'
+  }
+
+  function notionRichTextToPlain(rt) {
+    if (!rt) return '';
+    return rt.map(t => t?.plain_text ?? t?.text?.content ?? '').join('');
+  }
+
+  function pickDb(db) {
+    console.log("entro")
+    localStorage.setItem(STORAGE_KEYS.NOTION_DB_ID, db.id)
+    localStorage.setItem(STORAGE_KEYS.NOTION_DB_TITLE, notionRichTextToPlain(db.title) || '');
     alert('Database saved! Redirecting to Studio...')
     // Redirect to studio after a short delay
     setTimeout(() => {
       window.location.href = '/#/studio'
     }, 1000)
+  }
+
+  // Show loading while checking authentication
+  if (authLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-black mx-auto mb-4"></div>
+          <p className="text-gray-600">Loading...</p>
+        </div>
+      </div>
+    )
+  }
+
+  // If user is not authenticated, show message (shouldn't reach here due to redirect)
+  if (!user) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-center">
+          <h1 className="text-2xl font-bold mb-4">Please sign in</h1>
+          <Link to="/login" className="px-6 py-3 bg-black text-white rounded-lg">
+            Go to Login
+          </Link>
+        </div>
+      </div>
+    )
   }
 
   return (
@@ -62,19 +111,29 @@ export default function Onboarding(){
         <div className="max-w-6xl mx-auto flex items-center gap-3 py-3">
           <Link to="/" className="w-8 h-8 rounded-xl bg-black/90 text-white grid place-items-center text-sm font-semibold">IG</Link>
           <div className="font-semibold">Onboarding</div>
-          <div className="ml-auto">
+          <div className="ml-auto flex items-center gap-2">
+            {user && (
+              <span className="text-sm text-gray-600">{user.email}</span>
+            )}
             {status.connected ? (
-              <button onClick={logout} className="px-3 py-1.5 rounded-lg border">Disconnect</button>
+              <button onClick={logout} className="px-3 py-1.5 rounded-lg border">Disconnect Notion</button>
             ) : null}
+            <button onClick={signOut} className="px-3 py-1.5 rounded-lg bg-red-100 text-red-700 hover:bg-red-200">Sign Out</button>
           </div>
         </div>
       </header>
 
       <main className="flex-1">
-        <div className="max-w-6xl mx-auto px-4 py-10 grid lg:grid-cols-2 gap-6 items-start">
-          {/* Step 1 */}
-          <div className="rounded-2xl border border-[var(--notion-border)] bg-[var(--notion-card)] p-6">
-            <div className="text-lg font-semibold mb-2">Step 1: Connect your Notion</div>
+        <div className="max-w-6xl mx-auto px-4 py-10">
+          <div className="text-center mb-8">
+            <h1 className="text-3xl font-bold mb-2">Welcome to GridPreviewer!</h1>
+            <p className="text-lg text-[var(--muted)]">Let's connect your Notion database to get started</p>
+          </div>
+          
+          <div className="grid lg:grid-cols-2 gap-6 items-start">
+            {/* Step 1 */}
+            <div className="rounded-2xl border border-[var(--notion-border)] bg-[var(--notion-card)] p-6">
+              <div className="text-lg font-semibold mb-2">Step 1: Connect your Notion</div>
             {status.connected ? (
               <div className="text-sm text-green-700">Connected ✓ {status.workspace ? `(${status.workspace})` : ''}</div>
             ) : (
@@ -102,24 +161,25 @@ export default function Onboarding(){
                 <ul className="space-y-2">
                   {dbs.map(db => (
                     <li key={db.id} className="flex items-center gap-2">
-                      <button onClick={()=>pickDb(db)} className="px-3 py-1.5 rounded-lg border hover:bg-gray-50">
-                        Use "{db.title || db.id.slice(0,6)}"
+                      <button onClick={() => pickDb(db)} className="px-3 py-1.5 rounded-lg border hover:bg-gray-50">
+                        Use "{notionRichTextToPlain(db.title) || db.id.slice(0, 6)}"
                       </button>
-                      <span className="text-xs text-[var(--muted)]">({db.id.slice(0,8)}...)</span>
+                      <span className="text-xs text-[var(--muted)]">({db.id.slice(0, 8)}...)</span>
                     </li>
                   ))}
                 </ul>
               </>
             )}
-          </div>
+            </div>
 
-          {/* Step 3 */}
-          <div className="rounded-2xl border border-[var(--notion-border)] bg-[var(--notion-card)] p-6 lg:col-span-2">
-            <div className="text-lg font-semibold mb-2">Step 3: Done</div>
-            <p className="text-sm text-[var(--muted)]">
-              Your Notion database is now connected! The Studio and Widget will automatically load your Instagram posts from the selected database.
-              You can head back to the <Link to="/studio" className="underline">Studio</Link> to see your content.
-            </p>
+            {/* Step 3 */}
+            <div className="rounded-2xl border border-[var(--notion-border)] bg-[var(--notion-card)] p-6 lg:col-span-2">
+              <div className="text-lg font-semibold mb-2">Step 3: Done</div>
+              <p className="text-sm text-[var(--muted)]">
+                Your Notion database is now connected! The Studio and Widget will automatically load your Instagram posts from the selected database.
+                You can head back to the <Link to="/studio" className="underline">Studio</Link> to see your content.
+              </p>
+            </div>
           </div>
         </div>
       </main>

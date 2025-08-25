@@ -68,9 +68,9 @@ export default function Privacy() {
               <div className="space-y-4 text-[var(--muted)]">
                 <p>We integrate with:</p>
                 <ul className="list-disc pl-6 space-y-2">
-                  <li><strong>Notion:</strong> To access your selected database content</li>
-                  <li><strong>2Checkout:</strong> For secure payment processing</li>
-                  <li><strong>Vercel:</strong> For hosting and content delivery</li>
+                  <li><strong>Notion:</strong> To access your selected database content for grid preview functionality</li>
+                  <li><strong>2Checkout (Verifone):</strong> For secure payment processing and subscription management</li>
+                  <li><strong>Vercel:</strong> For reliable hosting and global content delivery</li>
                 </ul>
                 <p>These services have their own privacy policies governing how they handle your data.</p>
               </div>
