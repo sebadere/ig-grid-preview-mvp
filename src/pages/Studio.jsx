@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react'
 import PhoneFrame from '../components/PhoneFrame'
 import Grid from '../components/Grid'
-import { DEMO_ROWS, loadRows, loadRowsAsync, saveRows, isNotionConnected, logoutFromNotion, updateNotionOrder } from '../lib/data'
+import { DEMO_ROWS, loadRows, loadRowsAsync, saveRows, isNotionConnected, logoutFromNotion, updateNotionOrder, cacheUserData, storeUserDataPublic } from '../lib/data'
 import { storeUserGrid } from '../lib/supabase'
 import { Link } from 'react-router-dom'
 import { STORAGE_KEYS } from '../lib/config.js'
