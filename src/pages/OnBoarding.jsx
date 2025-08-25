@@ -6,6 +6,7 @@ import { API_BASE, STORAGE_KEYS } from '../lib/config.js'
 
 async function getJSON(path, opts = {}) {
   const r = await fetch(`${API_BASE}${path}`, { credentials: 'include', ...opts });
+  console.log(r)
   if (!r.ok) throw new Error(await r.text());
   return r.json();
 }
@@ -34,10 +35,10 @@ export default function Onboarding() {
 
       // If user is authenticated, check Notion status
       try {
+        const s = await getJSON('/api/notion/status')
         setStatus(s)
-        const s = await getJSON(`${API_BASE}/api/notion/status'`)
         if (s.connected) {
-          const list = await getJSON(`${API_BASE}/api/notion/databases`)
+          const list = await getJSON('/api/notion/databases')
           setDbs(list.results || [])
         }
       } catch (e) {

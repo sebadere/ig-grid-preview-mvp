@@ -146,6 +146,7 @@ export default function Login() {
     setError('')
 
     try {
+      console.log(window.location.origin)
       const { data, error } = await supabase.auth.signInWithOAuth({
         provider: 'google',
         options: {
