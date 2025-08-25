@@ -34,10 +34,10 @@ export default function Onboarding() {
 
       // If user is authenticated, check Notion status
       try {
-        const s = await getJSON('/api/notion/status')
         setStatus(s)
+        const s = await getJSON(`${API_BASE}/api/notion/status'`)
         if (s.connected) {
-          const list = await getJSON('/api/notion/databases')
+          const list = await getJSON(`${API_BASE}/api/notion/databases`)
           setDbs(list.results || [])
         }
       } catch (e) {
