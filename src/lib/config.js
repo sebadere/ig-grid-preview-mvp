@@ -28,5 +28,8 @@ export const STORAGE_KEYS = {
   NOTION_DB_TITLE: 'notionDbTitle',
   NOTION_TOKEN: 'notion_token',
   USER_SESSION: 'user-session-id',
-  SUPABASE_USER_ID: 'supabase-user-id'
+  SUPABASE_USER_ID: 'supabase-user-id',
+  UI_PREFERENCES: 'ig-grid-ui-preferences',
+  LAST_SYNC_TIME: 'ig-grid-last-sync',
+  NOTION_CONTENT_HASH: 'ig-grid-notion-hash'
 };

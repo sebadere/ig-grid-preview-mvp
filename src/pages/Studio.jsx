@@ -1,8 +1,9 @@
-import React, { useEffect, useMemo, useState } from 'react'
+import React, { useEffect, useMemo, useState, useCallback } from 'react'
 import PhoneFrame from '../components/PhoneFrame'
 import Grid from '../components/Grid'
 import { DEMO_ROWS, loadRows, loadRowsAsync, saveRows, isNotionConnected, logoutFromNotion, updateNotionOrder, cacheUserData, storeUserDataPublic } from '../lib/data'
 import { storeUserGrid } from '../lib/supabase'
+import { stateManager } from '../lib/state'
 import { Link } from 'react-router-dom'
 import { STORAGE_KEYS } from '../lib/config.js'
 
@@ -13,8 +14,26 @@ export default function Studio(){
   const [loading, setLoading] = useState(false)
   const [isConnected, setIsConnected] = useState(isNotionConnected())
   const [notionDbTitle, setNotionDbTitle] = useState(localStorage.getItem(STORAGE_KEYS.NOTION_DB_TITLE) || '')
+  const [syncStatus, setSyncStatus] = useState(null)
+  const [showSyncNotification, setShowSyncNotification] = useState(false)
 
-  useEffect(()=>{ saveRows(rows) }, [rows])
+  // Load UI preferences on mount
+  useEffect(() => {
+    const preferences = stateManager.loadUIPreferences()
+    setGap(preferences.gap)
+    setRadius(preferences.radius)
+  }, [])
+
+  // Save rows to both old system and new state manager
+  useEffect(()=>{ 
+    saveRows(rows)
+    
+    // Save to enhanced state management if connected
+    const notionDbId = localStorage.getItem(STORAGE_KEYS.NOTION_DB_ID)
+    if (isConnected && notionDbId) {
+      stateManager.saveGridState(notionDbId, rows, { gap, radius })
+    }
+  }, [rows, gap, radius, isConnected])
 
 
   useEffect(() => {
@@ -22,16 +41,91 @@ export default function Studio(){
     refreshData();
   }, [])
 
+  // Set up auto-sync when connected
+  useEffect(() => {
+    const notionDbId = localStorage.getItem(STORAGE_KEYS.NOTION_DB_ID)
+    
+    if (isConnected && notionDbId) {
+      // Start auto-sync
+      stateManager.startAutoSync(notionDbId, handleSyncChanges)
+      
+      // Update sync status
+      setSyncStatus(stateManager.getSyncStatus(notionDbId))
+      
+      return () => {
+        stateManager.stopAutoSync()
+      }
+    } else {
+      stateManager.stopAutoSync()
+      setSyncStatus(null)
+    }
+  }, [isConnected])
+
+  // Handle sync changes from auto-sync
+  const handleSyncChanges = useCallback((changes) => {
+    if (changes.hasChanges) {
+      setShowSyncNotification(true)
+      console.log('🔔 Notion content has changed, user can refresh to get updates')
+    }
+  }, [])
+
   async function refreshData() {
     setLoading(true);
+    setShowSyncNotification(false);
+    
     try {
+      const notionDbId = localStorage.getItem(STORAGE_KEYS.NOTION_DB_ID);
+      
+      // Load from enhanced state management first
+      if (isNotionConnected() && notionDbId) {
+        const savedState = await stateManager.loadGridState(notionDbId);
+        
+        if (savedState) {
+          console.log('📱 Loaded saved state with preferences');
+          setRows(savedState.rows);
+          setGap(savedState.preferences.gap || 2);
+          setRadius(savedState.preferences.radius || 6);
+          
+          // Also update UI preferences in localStorage
+          stateManager.saveUIPreferences(savedState.preferences);
+        }
+      }
+      
+      // Get fresh data from Notion
       const newRows = await loadRowsAsync();
       console.log('- Loaded rows:', newRows?.length, 'items');
       console.log('- Sample row:', newRows?.[0]);
       
-      setRows(newRows);
-      setIsConnected(isNotionConnected());
+      // Update connection status
+      const connected = isNotionConnected();
+      setIsConnected(connected);
       setNotionDbTitle(localStorage.getItem(STORAGE_KEYS.NOTION_DB_TITLE) || '');
+      
+      // If we got fresh data, check if it differs from current state
+      if (connected && notionDbId && newRows?.length > 0) {
+        const currentState = await stateManager.loadGridState(notionDbId);
+        
+        if (currentState && currentState.rows.length > 0) {
+          // Merge fresh Notion data with user's custom order
+          const mergedRows = stateManager.mergeNotionChanges(currentState.rows, newRows);
+          setRows(mergedRows);
+          
+          // Save the updated state
+          await stateManager.saveGridState(notionDbId, mergedRows, { gap, radius });
+        } else {
+          // No saved state, use fresh data
+          setRows(newRows);
+          await stateManager.saveGridState(notionDbId, newRows, { gap, radius });
+        }
+        
+        // Update sync status and last sync time
+        stateManager.updateLastSyncTime(notionDbId);
+        setSyncStatus(stateManager.getSyncStatus(notionDbId));
+      } else {
+        // Not connected or no data, use what we got
+        setRows(newRows);
+      }
+      
     } catch (error) {
       console.error('Failed to refresh data:', error);
     } finally {
@@ -83,23 +177,24 @@ export default function Studio(){
     next.splice(to,0,moved)
     setRows(next)
 
-    // If connected, store the new order in Supabase so embeds mirror Studio exactly
+    // If connected, store the new order using enhanced state management
     if (isConnected) {
       const notionDbId = localStorage.getItem(STORAGE_KEYS.NOTION_DB_ID);
       if (notionDbId && next.length > 0) {
         try {
-          // Store in Supabase with user session
-          await storeUserGrid(notionDbId, next);
+          // Use enhanced state management
+          await stateManager.saveGridState(notionDbId, next, { gap, radius });
           
-          // Also cache locally for backup and publish to old API for compatibility
+          // Legacy compatibility: also store using old methods
+          await storeUserGrid(notionDbId, next);
           cacheUserData(notionDbId, next);
           await storeUserDataPublic(notionDbId, next);
           
-          console.log('Stored reordered grid in Supabase');
+          console.log('✅ Stored reordered grid with enhanced state management');
         } catch (error) {
-          console.warn('Failed to store reordered grid in Supabase:', error);
+          console.warn('Failed to store reordered grid:', error);
           
-          // Fallback to old method
+          // Fallback to old method only
           try {
             cacheUserData(notionDbId, next);
             await storeUserDataPublic(notionDbId, next);
@@ -225,6 +320,29 @@ export default function Studio(){
           {/* Right: Controls + Preview + Link */}
           <div className="space-y-4">
             <div className="rounded-2xl border border-[var(--notion-border)] bg-[var(--notion-card)] p-4 space-y-4">
+              {/* Sync Notification */}
+              {showSyncNotification && (
+                <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <span className="text-blue-700">🔄 New changes detected in Notion</span>
+                  </div>
+                  <div className="flex gap-2">
+                    <button 
+                      onClick={refreshData}
+                      className="px-3 py-1 text-sm bg-blue-600 text-white rounded hover:bg-blue-700"
+                    >
+                      Sync Now
+                    </button>
+                    <button 
+                      onClick={() => setShowSyncNotification(false)}
+                      className="px-3 py-1 text-sm border border-blue-300 rounded hover:bg-blue-100"
+                    >
+                      Dismiss
+                    </button>
+                  </div>
+                </div>
+              )}
+
               {/* Top Row: Sync Button + Status */}
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-3">
@@ -250,6 +368,11 @@ export default function Studio(){
                     <div className="flex items-center gap-2">
                       <div className="px-3 py-1.5 text-sm bg-green-100 text-green-800 rounded-lg">
                         📊 Connected: {notionDbTitle || 'Notion DB'}
+                        {syncStatus?.lastSync && (
+                          <div className="text-xs opacity-75 mt-0.5">
+                            Last sync: {new Date(syncStatus.lastSync).toLocaleTimeString()}
+                          </div>
+                        )}
                       </div>
                       <button 
                         onClick={handleLogout}
@@ -288,7 +411,11 @@ export default function Studio(){
                       max="8" 
                       step="1" 
                       value={gap} 
-                      onChange={e=>setGap(Number(e.target.value))}
+                      onChange={e=>{
+                        const newGap = Number(e.target.value);
+                        setGap(newGap);
+                        stateManager.saveUIPreferences({ gap: newGap });
+                      }}
                       className="w-20"
                     />
                     <span className="text-xs text-[var(--muted)] min-w-[16px]">{gap}</span>
@@ -301,7 +428,11 @@ export default function Studio(){
                       max="20" 
                       step="2" 
                       value={radius} 
-                      onChange={e=>setRadius(Number(e.target.value))}
+                      onChange={e=>{
+                        const newRadius = Number(e.target.value);
+                        setRadius(newRadius);
+                        stateManager.saveUIPreferences({ radius: newRadius });
+                      }}
                       className="w-20"
                     />
                     <span className="text-xs text-[var(--muted)] min-w-[16px]">{radius}</span>
