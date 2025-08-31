@@ -26,6 +26,7 @@ export const STORAGE_KEYS = {
   GRID_ROWS: 'ig-grid-mvp-rows',
   NOTION_DB_ID: 'notionDbId',
   NOTION_DB_TITLE: 'notionDbTitle',
+  NOTION_TOKEN: 'notion_token',
   USER_SESSION: 'user-session-id',
   SUPABASE_USER_ID: 'supabase-user-id'
 };

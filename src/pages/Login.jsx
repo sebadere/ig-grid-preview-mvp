@@ -154,7 +154,10 @@ export default function Login() {
         }
       })
 
-      if (error) throw error
+      if (error) {
+        console.log(error)
+        throw error
+      }
     } catch (error) {
       setError(error.message)
       setLoading(false)

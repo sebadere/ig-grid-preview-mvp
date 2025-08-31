@@ -3,13 +3,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { API_BASE, STORAGE_KEYS } from '../lib/config.js'
-
-async function getJSON(path, opts = {}) {
-  const r = await fetch(`${API_BASE}${path}`, { credentials: 'include', ...opts });
-  console.log(r)
-  if (!r.ok) throw new Error(await r.text());
-  return r.json();
-}
+import { notionClient, safeNotionRequest } from '../lib/notion.js'
 
 export default function Onboarding() {
   const [params] = useSearchParams()
@@ -33,16 +27,20 @@ export default function Onboarding() {
         return
       }
 
+      // Handle OAuth callback first (extract token from URL)
+      const tokenReceived = notionClient.handleCallback()
+      
       // If user is authenticated, check Notion status
       try {
-        const s = await getJSON('/api/notion/status')
+        const s = await safeNotionRequest(() => notionClient.checkStatus())
         setStatus(s)
         if (s.connected) {
-          const list = await getJSON('/api/notion/databases')
+          const list = await safeNotionRequest(() => notionClient.getDatabases())
           setDbs(list.results || [])
         }
       } catch (e) {
-        // not connected yet
+        // not connected yet - this is expected if no token
+        console.log('Notion not connected yet:', e.message)
       }
     }
     
@@ -50,11 +48,11 @@ export default function Onboarding() {
   }, [connected])
 
   function connectNotion() {
-    window.location.href = `${API_BASE}/api/notion/start`
+    notionClient.startConnection()
   }
 
   async function logout() {
-    await fetch('/api/notion/logout', { method: 'POST', credentials: 'include' })
+    notionClient.logout()
     setStatus({ connected: false, workspace: null })
     setDbs([])
   }

@@ -1,8 +1,10 @@
 import { API_BASE, DEMO_ROWS, STORAGE_KEYS } from '../config.js';
+import { notionClient, safeNotionRequest } from '../notion.js';
 
 const STATE_KEY = STORAGE_KEYS.GRID_ROWS
 export const STORAGE_KEY = STATE_KEY
 
+// Legacy function for non-Notion API calls
 async function getJSON(path, opts = {}) {
   const r = await fetch(`${API_BASE}${path}`, { credentials: 'include', ...opts });
   if (!r.ok) throw new Error(await r.text());
@@ -20,9 +22,9 @@ export async function loadRowsAsync(){
   
   if (notionDbId) {
     try {
-      // Try to fetch from Notion first
+      // Try to fetch from Notion first using the new client
       console.log('📡 Fetching from Notion API:', `/api/notion/posts?databaseId=${notionDbId}`);
-      const response = await getJSON(`/api/notion/posts?databaseId=${notionDbId}`);
+      const response = await safeNotionRequest(() => notionClient.getPosts(notionDbId));
       console.log('📡 Notion API response:', response);
       
       if (response.results && response.results.length > 0) {
@@ -119,23 +121,17 @@ export async function loadRowsAsync(){
 export function saveRows(rows){ try { localStorage.setItem(STATE_KEY, JSON.stringify(rows)) } catch(e){} }
 
 export function isNotionConnected() {
-  return Boolean(localStorage.getItem(STORAGE_KEYS.NOTION_DB_ID));
+  return notionClient.isConnected() && Boolean(localStorage.getItem(STORAGE_KEYS.NOTION_DB_ID));
 }
 
 export async function logoutFromNotion() {
-  try {
-    // Call the logout API to clear server-side cookies
-    await fetch(`${API_BASE}/api/notion/logout`, { 
-      method: 'POST', 
-      credentials: 'include' 
-    });
-  } catch (error) {
-    console.warn('Failed to call logout API:', error);
-  }
+  // Use the new notion client to logout (clears token and notifies server)
+  notionClient.logout();
   
   // Clear all local Notion data
   localStorage.removeItem(STORAGE_KEYS.NOTION_DB_ID);
   localStorage.removeItem(STORAGE_KEYS.NOTION_DB_TITLE);
+  localStorage.removeItem(STORAGE_KEYS.NOTION_TOKEN); // Clear token
   localStorage.removeItem(STATE_KEY); // Clear cached posts
 }
 
@@ -149,7 +145,15 @@ export async function loadRowsForUser(databaseId) {
   
   // First, try to fetch fresh data from Notion (prioritize fresh content)
   try {
-    const response = await getJSON(`/api/notion/posts?databaseId=${databaseId}`);
+    // Use authenticated client if user is logged in and has token
+    let response;
+    if (notionClient.isConnected()) {
+      response = await safeNotionRequest(() => notionClient.getPosts(databaseId));
+    } else {
+      // Fallback to public API for unauthenticated requests
+      response = await getJSON(`/api/notion/posts?databaseId=${databaseId}`);
+    }
+    
     if (response.results && response.results.length > 0) {
       // Transform to ensure proper format
       const transformedResults = response.results.map(item => ({
@@ -287,7 +291,13 @@ export async function checkForNotionChanges(databaseId) {
     const lastHash = localStorage.getItem(`user-data-${databaseId}-hash`);
     const url = `/api/notion/sync?database_id=${databaseId}${lastHash ? `&last_hash=${lastHash}` : ''}`;
     
-    const response = await getJSON(url);
+    // Use authenticated client if available, otherwise fallback to legacy method
+    let response;
+    if (notionClient.isConnected()) {
+      response = await safeNotionRequest(() => notionClient.makeRequest(url));
+    } else {
+      response = await getJSON(url);
+    }
 
     console.log('response', response);
     
@@ -308,22 +318,35 @@ export async function updateNotionOrder(databaseId, orderedIds) {
   if (!databaseId || !orderedIds) return false;
   
   try {
-    const response = await fetch(`${API_BASE}/api/notion/update-order`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      credentials: 'include',
-      body: JSON.stringify({ databaseId, orderedIds })
-    });
-    
-    if (response.ok) {
-      const result = await response.json();
-      console.log('Updated order in Notion:', result);
+    // Use authenticated client if available
+    if (notionClient.isConnected()) {
+      const response = await safeNotionRequest(() => 
+        notionClient.makeRequest('/api/notion/update-order', {
+          method: 'POST',
+          body: JSON.stringify({ databaseId, orderedIds })
+        })
+      );
+      console.log('Updated order in Notion:', response);
       return true;
     } else {
-      console.warn('Failed to update order in Notion:', response.status);
-      return false;
+      // Fallback to legacy method
+      const response = await fetch(`${API_BASE}/api/notion/update-order`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        credentials: 'include',
+        body: JSON.stringify({ databaseId, orderedIds })
+      });
+      
+      if (response.ok) {
+        const result = await response.json();
+        console.log('Updated order in Notion:', result);
+        return true;
+      } else {
+        console.warn('Failed to update order in Notion:', response.status);
+        return false;
+      }
     }
   } catch (error) {
     console.warn('Failed to update order in Notion:', error);
