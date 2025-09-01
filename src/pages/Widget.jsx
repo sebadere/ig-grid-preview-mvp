@@ -3,6 +3,7 @@ import { useSearchParams } from 'react-router-dom'
 import PhoneFrame from '../components/PhoneFrame'
 import Grid from '../components/Grid'
 import { loadRows, loadRowsAsync, loadRowsForUser } from '../lib/data'
+import { stateManager } from '../lib/state'
 import { STORAGE_KEYS } from '../lib/config.js'
 
 export default function Widget(){
@@ -25,8 +26,28 @@ export default function Widget(){
     const loadData = async () => {
       try {
         if (userId) {
-          // Load data for specific user from URL params
+          console.log('🎯 Widget loading data for user (notionDbId):', userId);
+          
+          // Try enhanced state management first for saved user state
+          const savedState = await stateManager.loadGridState(userId);
+          if (savedState && savedState.rows && savedState.rows.length > 0) {
+            console.log('📱 Widget: SUCCESS - Loaded saved state from enhanced state management', {
+              rowCount: savedState.rows.length,
+              firstRow: savedState.rows[0],
+              preferences: savedState.preferences
+            });
+            setRows(savedState.rows);
+            return;
+          }
+          
+          // Fallback to original loadRowsForUser function
+          console.log('📡 Widget: Enhanced state empty, fallback to loadRowsForUser');
           const newRows = await loadRowsForUser(userId);
+          console.log('📡 Widget: loadRowsForUser returned:', {
+            rowCount: newRows?.length,
+            firstRow: newRows?.[0],
+            isDemo: newRows?.[0]?.url?.includes('unsplash.com')
+          });
           setRows(newRows);
         } else {
           // Load data for current user (if logged in)
@@ -59,8 +80,19 @@ export default function Widget(){
     setLoading(true);
     try {
       if (userId) {
-        const fresh = await loadRowsForUser(userId);
-        setRows(fresh);
+        console.log('🔄 Widget refreshing data for user:', userId);
+        
+        // Try enhanced state management first for saved user state
+        const savedState = await stateManager.loadGridState(userId);
+        if (savedState && savedState.rows && savedState.rows.length > 0) {
+          console.log('📱 Widget refresh: Loaded saved state from enhanced state management');
+          setRows(savedState.rows);
+        } else {
+          // Fallback to fresh fetch
+          console.log('📡 Widget refresh: Fallback to loadRowsForUser');
+          const fresh = await loadRowsForUser(userId);
+          setRows(fresh);
+        }
       } else {
         const fresh = await loadRowsAsync();
         setRows(fresh);

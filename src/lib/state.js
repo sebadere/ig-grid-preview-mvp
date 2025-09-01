@@ -106,26 +106,59 @@ class StateManager {
    * Load complete grid state
    */
   async loadGridState(notionDbId) {
-    if (!notionDbId) return null;
+    if (!notionDbId) {
+      console.log('❌ loadGridState: No notionDbId provided');
+      return null;
+    }
+
+    console.log('🔍 loadGridState: Starting for notionDbId:', notionDbId);
 
     try {
-      // Try Supabase first
+      // Try Supabase first (if user is authenticated)
+      console.log('🔍 Trying authenticated Supabase access...');
       const supabaseState = await loadUserGrid(notionDbId);
       if (supabaseState) {
-        console.log('📱 Loaded grid state from Supabase');
+        console.log('📱 SUCCESS: Loaded grid state from authenticated Supabase', {
+          hasRows: !!supabaseState.rows,
+          rowCount: supabaseState.rows?.length
+        });
         return this.validateGridState(supabaseState);
       }
+      console.log('📱 Authenticated Supabase returned null');
     } catch (error) {
-      console.warn('Failed to load from Supabase:', error);
+      console.warn('📱 Failed to load from authenticated Supabase (normal for embeds):', error.message);
+    }
+
+    // Try to load public user grid from Supabase (for embeds)
+    try {
+      console.log('🔍 Trying public Supabase access...');
+      const { loadPublicUserGrid } = await import('./supabase.js');
+      const publicState = await loadPublicUserGrid(notionDbId);
+      if (publicState) {
+        console.log('🌍 SUCCESS: Loaded public grid state from Supabase', {
+          hasRows: !!publicState.rows,
+          rowCount: publicState.rows?.length
+        });
+        return this.validateGridState(publicState);
+      }
+      console.log('🌍 Public Supabase returned null');
+    } catch (error) {
+      console.warn('🌍 Failed to load public grid state:', error.message);
     }
 
     // Fallback to localStorage
+    console.log('🔍 Trying localStorage...');
     const localState = this.loadLocalGridState(notionDbId);
     if (localState) {
-      console.log('💾 Loaded grid state from localStorage');
+      console.log('💾 SUCCESS: Loaded grid state from localStorage', {
+        hasRows: !!localState.rows,
+        rowCount: localState.rows?.length
+      });
       return this.validateGridState(localState);
     }
+    console.log('💾 localStorage returned null');
 
+    console.log('❌ loadGridState: No data found from any source');
     return null;
   }
 
