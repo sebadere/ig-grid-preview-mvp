@@ -3,7 +3,7 @@ import React from 'react'
 export default function Grid({ rows, gap=1, radius=6, cols=3, numImages=9, id }){
   const style = { gap: `${gap}px`, gridTemplateColumns: `repeat(${cols}, minmax(0,1fr))` }
   // Show only first 8 images in the display, but respect numImages for data selection
-  const displayRows = rows.slice(0, Math.min(8, numImages))
+  const displayRows = rows.slice(0, numImages)
   
   return (
     <div id={id} className="grid h-full" style={style}>
