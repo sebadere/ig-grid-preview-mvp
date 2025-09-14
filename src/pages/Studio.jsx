@@ -11,6 +11,7 @@ export default function Studio(){
   const [rows, setRows] = useState(loadRows())
   const [gap, setGap] = useState(2)
   const [radius, setRadius] = useState(6)
+  const [numImages, setNumImages] = useState(9)
   const [loading, setLoading] = useState(false)
   const [isConnected, setIsConnected] = useState(isNotionConnected())
   const [notionDbTitle, setNotionDbTitle] = useState(localStorage.getItem(STORAGE_KEYS.NOTION_DB_TITLE) || '')
@@ -22,6 +23,7 @@ export default function Studio(){
     const preferences = stateManager.loadUIPreferences()
     setGap(preferences.gap)
     setRadius(preferences.radius)
+    setNumImages(preferences.numImages)
   }, [])
 
   // Save rows to both old system and new state manager
@@ -31,9 +33,9 @@ export default function Studio(){
     // Save to enhanced state management if connected
     const notionDbId = localStorage.getItem(STORAGE_KEYS.NOTION_DB_ID)
     if (isConnected && notionDbId) {
-      stateManager.saveGridState(notionDbId, rows, { gap, radius })
+      stateManager.saveGridState(notionDbId, rows, { gap, radius, numImages })
     }
-  }, [rows, gap, radius, isConnected])
+  }, [rows, gap, radius, numImages, isConnected])
 
 
   useEffect(() => {
@@ -108,14 +110,14 @@ export default function Studio(){
         if (currentState && currentState.rows.length > 0) {
           // Merge fresh Notion data with user's custom order
           const mergedRows = stateManager.mergeNotionChanges(currentState.rows, newRows);
-          setRows(mergedRows);
+          setRows(mergedRows.slice(0, numImages));
           
           // Save the updated state
-          await stateManager.saveGridState(notionDbId, mergedRows, { gap, radius });
+          await stateManager.saveGridState(notionDbId, mergedRows.slice(0, numImages), { gap, radius, numImages });
         } else {
           // No saved state, use fresh data
-          setRows(newRows);
-          await stateManager.saveGridState(notionDbId, newRows, { gap, radius });
+          setRows(newRows.slice(0, numImages));
+          await stateManager.saveGridState(notionDbId, newRows.slice(0, numImages), { gap, radius, numImages });
         }
         
         // Update sync status and last sync time
@@ -123,7 +125,7 @@ export default function Studio(){
         setSyncStatus(stateManager.getSyncStatus(notionDbId));
       } else {
         // Not connected or no data, use what we got
-        setRows(newRows);
+        setRows(newRows.slice(0, numImages));
       }
       
     } catch (error) {
@@ -138,7 +140,7 @@ export default function Studio(){
     try {
       await logoutFromNotion();
       // Reset to demo data
-      setRows(loadRows());
+      setRows(loadRows(numImages));
       setIsConnected(false);
       setNotionDbTitle('');
     } catch (error) {
@@ -437,6 +439,25 @@ export default function Studio(){
                     />
                     <span className="text-xs text-[var(--muted)] min-w-[16px]">{radius}</span>
                   </label>
+                  <label className="flex items-center gap-2 text-sm">
+                    <span className="min-w-[44px]">Images</span>
+                    <input 
+                      type="range" 
+                      min="1" 
+                      max="12" 
+                      step="1" 
+                      value={numImages} 
+                      onChange={e=>{
+                        const newNumImages = Number(e.target.value);
+                        setNumImages(newNumImages);
+                        stateManager.saveUIPreferences({ numImages: newNumImages });
+                        // Update rows immediately to reflect the change
+                        setRows(prevRows => prevRows.slice(0, newNumImages));
+                      }}
+                      className="w-20"
+                    />
+                    <span className="text-xs text-[var(--muted)] min-w-[16px]">{numImages}</span>
+                  </label>
                 </div>
               </div>
             </div>
@@ -444,7 +465,7 @@ export default function Studio(){
             <div className="rounded-2xl border border-[var(--notion-border)] bg-[var(--notion-card)] p-4">
               <div className="text-sm text-[var(--muted)] mb-2">Embed preview (9:16)</div>
               <PhoneFrame>
-                <Grid rows={rows} gap={gap} radius={radius} cols={3} />
+                <Grid rows={rows} gap={gap} radius={radius} cols={3} numImages={numImages} />
               </PhoneFrame>
             </div>
 

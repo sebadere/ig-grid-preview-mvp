@@ -114,7 +114,7 @@ export default function Widget(){
       </div>
       <div className="flex-1 flex items-center justify-center">
         <PhoneFrame>
-          <Grid rows={rows} gap={gap} radius={radius} cols={cols} id="gridEmbed" />
+          <Grid rows={rows} gap={gap} radius={radius} cols={cols} numImages={9} id="gridEmbed" />
         </PhoneFrame>
       </div>
     </div>

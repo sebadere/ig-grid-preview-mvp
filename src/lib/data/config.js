@@ -11,9 +11,15 @@ async function getJSON(path, opts = {}) {
   return r.json();
 }
 
-export function loadRows(){
-  try { const raw = localStorage.getItem(STATE_KEY); if(raw) return JSON.parse(raw) } catch(e){}
-  return DEMO_ROWS.slice(0,9)
+export function loadRows(numImages = 9){
+  try { 
+    const raw = localStorage.getItem(STATE_KEY); 
+    if(raw) {
+      const parsed = JSON.parse(raw);
+      return parsed.slice(0, Math.min(numImages, 12)); // Limit to numImages with max 12
+    }
+  } catch(e){}
+  return DEMO_ROWS.slice(0, Math.min(numImages, 9)) // Default to 9 for demo
 }
 
 export async function loadRowsAsync(){

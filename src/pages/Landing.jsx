@@ -200,7 +200,8 @@ export default function Landing(){
 
           <div className="rounded-2xl border border-[var(--notion-border)] bg-[var(--notion-card)] p-6">
             <PhoneFrame>
-              <Grid rows={rows.slice(0,9)} gap={1} radius={6} cols={3} />
+
+              <Grid rows={rows.slice(0,9)} gap={1} radius={6} cols={3} numImages={9} />
             </PhoneFrame>
           </div>
         </div>

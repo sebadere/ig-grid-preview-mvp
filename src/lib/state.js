@@ -12,6 +12,7 @@ const DEFAULT_UI_PREFERENCES = {
   gap: 2,
   radius: 6,
   cols: 3,
+  numImages: 9, // default 9, max 12, display first 8
   autoSync: true,
   syncInterval: 300000, // 5 minutes
 };
