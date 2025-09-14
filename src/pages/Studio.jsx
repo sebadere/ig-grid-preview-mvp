@@ -404,7 +404,7 @@ export default function Studio(){
               {/* Bottom Row: Controls */}
               <div className="flex items-center justify-between pt-2 border-t border-[var(--notion-border)]">
                 <div className="text-sm text-[var(--muted)]">Grid Controls</div>
-                <div className="flex items-center gap-6">
+                <div className="flex items-center gap-4">
                   <label className="flex items-center gap-2 text-sm">
                     <span className="min-w-[32px]">Gap</span>
                     <input 
